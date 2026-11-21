@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Galaxy Game Monitor</string>
+    <string name="summary">ゲームブースターのCPU・GPU表示を、ハードウェアの最大性能に対する割合に変えます。</string>
+</resources>

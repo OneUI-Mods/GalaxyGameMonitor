@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Galaxy Game Monitor</string>
+    <string name="summary">Show CPU and GPU usage relative to peak hardware capacity in Game Booster’s system monitor.</string>
+</resources>
