@@ -5,4 +5,11 @@
     <string name="mode_peak_relative">Game Booster shows clock-adjusted CPU and GPU load.</string>
     <string name="mode_stock">Game Booster shows its standard CPU and GPU usage.</string>
     <string name="module_setup">Enable this module for Game Booster in Vector. The switch applies to the next monitor update.</string>
+    <string name="reload_game_booster">Reload Game Booster</string>
+    <string name="reload_running">Reloading Game Booster…</string>
+    <string name="reload_requested">Game Booster will reload when you return to your game.</string>
+    <string name="reload_root_required">Allow root access for Galaxy Game Monitor to reload Game Booster.</string>
+    <string name="reload_primary_user_only">Reload Game Booster from the primary user profile.</string>
+    <string name="reload_unavailable">Game Booster is unavailable on this device.</string>
+    <string name="reload_failed">Could not reload Game Booster.</string>
 </resources>

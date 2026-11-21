@@ -8,4 +8,6 @@ Enable the module in Vector or another framework with libxposed API 102 and relo
 
 In Galaxy Game Monitor, turn **Show relative to peak clock** on for clock-adjusted load or off for Game Booster’s standard CPU and GPU usage. It is on by default. Changes apply on the next monitor update.
 
+After updating the module, choose **Reload Game Booster**, then return to your game. This button requires root access for Galaxy Game Monitor.
+
 Values are clock-based estimates. Each metric keeps its stock value when the device cannot supply the required telemetry.

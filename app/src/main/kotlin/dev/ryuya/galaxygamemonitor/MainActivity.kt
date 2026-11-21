@@ -1,9 +1,12 @@
 package dev.ryuya.galaxygamemonitor
 
 import android.os.Bundle
+import android.os.UserManager
+import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import com.google.android.material.button.MaterialButton
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.textview.MaterialTextView
 
@@ -29,6 +32,18 @@ class MainActivity : AppCompatActivity() {
         toggle.setOnCheckedChangeListener { _, peakRelative ->
             DisplaySettings.set(this, peakRelative)
             showMode(peakRelative)
+        }
+
+        val reload = findViewById<MaterialButton>(R.id.reload_game_booster)
+        val reloadStatus = findViewById<MaterialTextView>(R.id.reload_status)
+        GameBoosterReload.state.observe(this) { state ->
+            reload.isEnabled = state != GameBoosterReload.State.RUNNING
+            reloadStatus.visibility = if (state == null) View.GONE else View.VISIBLE
+            state?.let { reloadStatus.setText(it.message) }
+        }
+        reload.setOnClickListener {
+            val primaryUser = getSystemService(UserManager::class.java)?.isSystemUser == true
+            GameBoosterReload.request(primaryUser)
         }
     }
 }
