@@ -1,0 +1,3 @@
+<resources>
+    <style name="Theme.GalaxyGameMonitor" parent="Theme.Material3.DayNight.NoActionBar" />
+</resources>

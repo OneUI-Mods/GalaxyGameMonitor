@@ -1,4 +1,8 @@
 <resources>
     <string name="app_name">Galaxy Game Monitor</string>
     <string name="summary">Show CPU and GPU usage relative to peak hardware capacity in Game Booster’s system monitor.</string>
+    <string name="peak_relative_toggle">Show relative to peak clock</string>
+    <string name="mode_peak_relative">Game Booster shows clock-adjusted CPU and GPU load.</string>
+    <string name="mode_stock">Game Booster shows its standard CPU and GPU usage.</string>
+    <string name="module_setup">Enable this module for Game Booster in Vector. The switch applies to the next monitor update.</string>
 </resources>

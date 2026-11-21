@@ -1,0 +1,8 @@
+Galaxy Game Monitor is distributed under the MIT License.
+
+Material Components for Android, AndroidX and Kotlin runtime libraries are
+distributed under the Apache License, Version 2.0.
+
+Material Components: https://github.com/material-components/material-components-android
+AndroidX: https://android.googlesource.com/platform/frameworks/support/
+Kotlin: https://github.com/JetBrains/kotlin

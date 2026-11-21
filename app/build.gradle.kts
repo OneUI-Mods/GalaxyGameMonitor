@@ -15,8 +15,8 @@ android {
         applicationId = namespace
         minSdk = 35
         targetSdk = 37
-        versionName = "0.1.0"
-        versionCode = 1
+        versionName = "0.2.0"
+        versionCode = 2
     }
     signingConfigs {
         if (distribution.isNotEmpty()) {
@@ -30,6 +30,9 @@ android {
     }
     buildTypes {
         release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = signingConfigs.findByName("distribution")
         }
     }
@@ -41,5 +44,6 @@ android {
 
 dependencies {
     compileOnly("io.github.libxposed:api:102.0.0")
+    implementation("com.google.android.material:material:1.14.0")
     testImplementation("junit:junit:4.13.2")
 }

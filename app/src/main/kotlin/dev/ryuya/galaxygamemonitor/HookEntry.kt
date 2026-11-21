@@ -24,10 +24,11 @@ class HookEntry : XposedModule() {
     }
 
     override fun onPackageReady(param: PackageReadyParam) {
-        if (!param.isFirstPackage || param.packageName != BOOSTER || processName != BOOSTER) return
+        val booster = DisplaySettings.GAME_BOOSTER
+        if (!param.isFirstPackage || param.packageName != booster || processName != booster) return
 
         runCatching {
-            val manager = param.classLoader.loadClass("$BOOSTER.data.GOSBindingManager")
+            val manager = param.classLoader.loadClass("$booster.data.GOSBindingManager")
             val gosInterface = param.classLoader.loadClass("com.samsung.android.game.gos.IGosService")
             val binderField = manager.declaredFields.single { it.type == gosInterface }
                 .apply { isAccessible = true }
@@ -64,6 +65,7 @@ class HookEntry : XposedModule() {
         )
         if (method.returnType != String::class.java || method in attached) return
         val capacity = DeviceCapacity(context)
+        val displaySettings = GameBoosterDisplaySettings(context, capacity::resetCpuSample)
         val users = context.getSystemService(UserManager::class.java)
 
         hook(method).intercept { chain ->
@@ -72,6 +74,8 @@ class HookEntry : XposedModule() {
             if (arguments.firstOrNull() != PERF_REQUEST || input == null ||
                 users?.isUserUnlocked != true
             ) return@intercept chain.proceed()
+
+            if (!displaySettings.isPeakRelative()) return@intercept chain.proceed()
 
             val request = runCatching { MonitorTelemetry.readMonitorRequest(input) }.getOrNull()
                 ?: return@intercept chain.proceed()
@@ -82,7 +86,7 @@ class HookEntry : XposedModule() {
             } else {
                 chain.proceed()
             }
-            if (raw !is String) return@intercept raw
+            if (raw !is String || !displaySettings.isPeakRelative()) return@intercept raw
 
             runCatching {
                 val transformed = MonitorTelemetry.normalize(raw, capacity, gpuPeak, addGpuClock)
@@ -102,7 +106,6 @@ class HookEntry : XposedModule() {
 
     companion object {
         private const val TAG = "GalaxyGameMonitor"
-        private const val BOOSTER = "com.samsung.android.game.gametools"
         private const val PERF_REQUEST = "perf_data_simple_request"
     }
 }

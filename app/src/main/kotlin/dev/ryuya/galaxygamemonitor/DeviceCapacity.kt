@@ -24,6 +24,11 @@ internal class DeviceCapacity(private val context: Context) {
     private var useHardwareManager = true
 
     @Synchronized
+    fun resetCpuSample() {
+        previous = null
+    }
+
+    @Synchronized
     fun cpuUsage(): Double? {
         if (policies.isEmpty()) return null
         val now = SystemClock.elapsedRealtime()
