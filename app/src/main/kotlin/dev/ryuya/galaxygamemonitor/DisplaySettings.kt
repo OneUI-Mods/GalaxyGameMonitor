@@ -77,6 +77,7 @@ internal class GameBoosterDisplaySettings(
 ) {
     private val resolver = context.contentResolver
     private var observing = false
+    @Volatile private var closed = false
     @Volatile private var cached: Boolean? = null
     private var lastKnown = DisplaySettings.DEFAULT_PEAK_RELATIVE
     private var lastReported: Boolean? = null
@@ -89,15 +90,26 @@ internal class GameBoosterDisplaySettings(
 
     @Synchronized
     private fun invalidate() {
+        if (closed) return
         onInvalidated()
         retryAfterMs = 0L
         cached = null
     }
 
-    fun isPeakRelative(): Boolean = cached ?: readSetting()
+    fun isPeakRelative(): Boolean = !closed && (cached ?: readSetting())
+
+    @Synchronized
+    fun close() {
+        closed = true
+        if (observing) {
+            observing = false
+            runCatching { resolver.unregisterContentObserver(observer) }
+        }
+    }
 
     @Synchronized
     private fun readSetting(): Boolean {
+        if (closed) return false
         cached?.let { return it }
         val now = SystemClock.elapsedRealtime()
         if (now < retryAfterMs) return lastKnown

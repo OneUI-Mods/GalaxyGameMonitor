@@ -6,6 +6,8 @@ import android.os.IBinder
 import android.os.UserManager
 import android.util.Log
 import io.github.libxposed.api.XposedModule
+import io.github.libxposed.api.XposedModuleInterface.HotReloadedParam
+import io.github.libxposed.api.XposedModuleInterface.HotReloadingParam
 import io.github.libxposed.api.XposedModuleInterface.ModuleLoadedParam
 import io.github.libxposed.api.XposedModuleInterface.PackageReadyParam
 import org.json.JSONArray
@@ -15,7 +17,11 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 class HookEntry : XposedModule() {
     private var processName: String? = null
-    private val attached = mutableSetOf<Method>()
+    private val attached = mutableMapOf<Method, GameBoosterDisplaySettings>()
+    @Volatile private var hostLoader: ClassLoader? = null
+    private var hostContext: Context? = null
+    private var connectedProxy: Class<*>? = null
+    @Volatile private var retired = false
     private val loggedCpu = AtomicBoolean()
     private val loggedGpu = AtomicBoolean()
 
@@ -27,9 +33,41 @@ class HookEntry : XposedModule() {
         val booster = DisplaySettings.GAME_BOOSTER
         if (!param.isFirstPackage || param.packageName != booster || processName != booster) return
 
-        runCatching {
-            val manager = param.classLoader.loadClass("$booster.data.GOSBindingManager")
-            val gosInterface = param.classLoader.loadClass("com.samsung.android.game.gos.IGosService")
+        installConnectionHook(param.classLoader)
+    }
+
+    @Synchronized
+    override fun onHotReloading(param: HotReloadingParam): Boolean {
+        val loader = hostLoader ?: return false
+        param.setSavedInstanceState(arrayOf(loader, hostContext, connectedProxy))
+        retired = true
+        attached.values.forEach(GameBoosterDisplaySettings::close)
+        return true
+    }
+
+    override fun onHotReloaded(param: HotReloadedParam) {
+        onModuleLoaded(param)
+        val state = param.savedInstanceState as? Array<*> ?: return
+        val loader = state.getOrNull(0) as? ClassLoader ?: return
+        if (param.processName != DisplaySettings.GAME_BOOSTER) return
+        if (!installConnectionHook(loader)) return
+        val context = state.getOrNull(1) as? Context
+        val proxy = state.getOrNull(2) as? Class<*>
+        if (context != null && proxy != null) {
+            val rebound = runCatching { installRequestHook(proxy, context) }.onFailure {
+                Log.w(TAG, "Waiting for Game Booster to reconnect its telemetry service", it)
+            }.getOrDefault(false)
+            if (!rebound) return
+        }
+        param.oldHookHandles.forEach { it.unhook() }
+        Log.i(TAG, "ONEUI_MODS_HOT_RELOAD package=${BuildConfig.APPLICATION_ID} version=${BuildConfig.VERSION_CODE} pid=${android.os.Process.myPid()}")
+    }
+
+    private fun installConnectionHook(loader: ClassLoader): Boolean {
+        val booster = DisplaySettings.GAME_BOOSTER
+        return runCatching {
+            val manager = loader.loadClass("$booster.data.GOSBindingManager")
+            val gosInterface = loader.loadClass("com.samsung.android.game.gos.IGosService")
             val binderField = manager.declaredFields.single { it.type == gosInterface }
                 .apply { isAccessible = true }
             val contextField = manager.declaredFields.single { it.type == Context::class.java }
@@ -39,7 +77,7 @@ class HookEntry : XposedModule() {
                 ComponentName::class.java,
                 IBinder::class.java,
             )
-            hook(connected).intercept { chain ->
+            hook(connected).setId("gos-connected").intercept { chain ->
                 val result = chain.proceed()
                 runCatching tryInstall@{
                     val receiver = chain.thisObject ?: return@tryInstall
@@ -51,24 +89,27 @@ class HookEntry : XposedModule() {
                 }
                 result
             }
+            hostLoader = loader
         }.onFailure {
             Log.w(TAG, "Game Booster telemetry interface unavailable", it)
-        }
+        }.isSuccess
     }
 
     @Synchronized
-    private fun installRequestHook(proxy: Class<*>, context: Context) {
+    private fun installRequestHook(proxy: Class<*>, context: Context): Boolean {
+        if (retired) return false
         val method = proxy.getDeclaredMethod(
             "requestWithJson",
             String::class.java,
             String::class.java,
         )
-        if (method.returnType != String::class.java || method in attached) return
+        if (method.returnType != String::class.java) return false
+        if (method in attached) return true
         val capacity = DeviceCapacity(context)
         val displaySettings = GameBoosterDisplaySettings(context, capacity::resetCpuSample)
         val users = context.getSystemService(UserManager::class.java)
 
-        hook(method).intercept { chain ->
+        hook(method).setId("gos-monitor-request").intercept { chain ->
             val arguments = chain.args
             val input = arguments.getOrNull(1) as? String
             if (arguments.firstOrNull() != PERF_REQUEST || input == null ||
@@ -100,8 +141,11 @@ class HookEntry : XposedModule() {
                 transformed.output
             }.getOrDefault(raw)
         }
-        attached.add(method)
+        attached[method] = displaySettings
+        hostContext = context
+        connectedProxy = proxy
         Log.i(TAG, "Game Booster system-monitor hook installed")
+        return true
     }
 
     companion object {

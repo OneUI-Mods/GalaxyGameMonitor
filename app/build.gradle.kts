@@ -11,12 +11,13 @@ android {
     namespace = "dev.ryuya.galaxygamemonitor"
     compileSdk { version = release(37) { minorApiLevel = 2 } }
     buildToolsVersion = "37.0.0"
+    buildFeatures { buildConfig = true }
     defaultConfig {
         applicationId = namespace
         minSdk = 35
         targetSdk = 37
-        versionName = "0.3.0"
-        versionCode = 3
+        versionName = "0.3.1"
+        versionCode = 4
     }
     signingConfigs {
         if (distribution.isNotEmpty()) {
