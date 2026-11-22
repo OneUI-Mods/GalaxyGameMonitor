@@ -92,11 +92,21 @@ internal class MonitorOverlay(context: Context, private val capture: MonitorCapt
             previous.settings.itemsPerRow != reading.settings.itemsPerRow ||
             previous.settings.order != reading.settings.order
         ) arrangeRows(active, reading.settings)
-        setReading(active.extra.getValue(MonitorItem.GPU_CLOCK), reading.clockMhz?.toString())
-        setReading(active.extra.getValue(MonitorItem.GAME_RAM), reading.gameRamKiB?.let { gigabytes.format(it / 1_048_576.0) })
-        setReading(active.extra.getValue(MonitorItem.BATTERY_LEVEL), reading.battery?.percent?.toString())
-        setReading(active.extra.getValue(MonitorItem.BATTERY_TEMPERATURE),
-            reading.battery?.temperatureTenthsC?.let { temperatures.format(it / 10.0) })
+        if (previous == null || previous.clockMhz != reading.clockMhz) {
+            setReading(active.extra.getValue(MonitorItem.GPU_CLOCK), reading.clockMhz?.toString())
+        }
+        if (previous == null || previous.gameRamKiB != reading.gameRamKiB) {
+            val ram = reading.gameRamKiB?.let { gigabytes.format(it / KIB_PER_GIB) }
+            setReading(active.extra.getValue(MonitorItem.GAME_RAM), ram)
+        }
+        val battery = reading.battery
+        if (previous == null || previous.battery?.percent != battery?.percent) {
+            setReading(active.extra.getValue(MonitorItem.BATTERY_LEVEL), battery?.percent?.toString())
+        }
+        if (previous == null || previous.battery?.temperatureTenthsC != battery?.temperatureTenthsC) {
+            val temperature = battery?.temperatureTenthsC?.let { temperatures.format(it / 10.0) }
+            setReading(active.extra.getValue(MonitorItem.BATTERY_TEMPERATURE), temperature)
+        }
         lastReading = reading
     }
 
@@ -227,6 +237,7 @@ internal class MonitorOverlay(context: Context, private val capture: MonitorCapt
     private companion object {
         const val TAG = "GalaxyGameMonitor"
         const val WRAP = ViewGroup.LayoutParams.WRAP_CONTENT
+        const val KIB_PER_GIB = 1_048_576.0
 
         @SuppressLint("DiscouragedApi")
         fun resourceId(context: Context, name: String): Int =

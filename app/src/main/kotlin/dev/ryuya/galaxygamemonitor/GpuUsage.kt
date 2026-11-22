@@ -42,7 +42,7 @@ internal class GpuUsage(private val sysfs: File = File("/sys")) {
 
     fun read(): Sample? {
         if (canReadKgslCounters) {
-            val usage = kgslCounters.contents()?.let(::busyPercentage)
+            val usage = kgslCounters.readKernelText()?.let(::busyPercentage)
             if (usage != null) return Sample(kgslCounters.name, usage)
         }
         return percentageFiles.firstNotNullOfOrNull(::readPercentage)
@@ -53,7 +53,7 @@ internal class GpuUsage(private val sysfs: File = File("/sys")) {
         ?: drmClockFiles.firstNotNullOfOrNull(::readClockMhz)
 
     private fun readClockMhz(file: File): Int? {
-        val frequency = file.contents()?.trim()?.toLongOrNull() ?: return null
+        val frequency = file.readKernelText()?.trim()?.toLongOrNull() ?: return null
         // KGSL exposes Hz and MHz. Samsung uses MHz on Mali and kHz or Hz on Xclipse.
         val mhz = when (frequency) {
             in 1..5_000 -> frequency
@@ -65,7 +65,7 @@ internal class GpuUsage(private val sysfs: File = File("/sys")) {
     }
 
     private fun readPercentage(file: File): Sample? {
-        val percentage = file.contents()?.trim()?.removeSuffix("%")?.trim()?.toIntOrNull()
+        val percentage = file.readKernelText()?.trim()?.removeSuffix("%")?.trim()?.toIntOrNull()
         return percentage?.takeIf { it in 0..100 }?.let { Sample(file.name, it.toDouble()) }
     }
 
@@ -76,14 +76,6 @@ internal class GpuUsage(private val sysfs: File = File("/sys")) {
         val total = times[1].toLongOrNull() ?: return null
         if (total <= 0 || busy !in 0..total) return null
         return 100.0 * busy / total
-    }
-
-    private fun File.contents(): String? = try {
-        readText()
-    } catch (_: IOException) {
-        null
-    } catch (_: SecurityException) {
-        null
     }
 
     private fun File.canonicalOrNull(): File? = try {

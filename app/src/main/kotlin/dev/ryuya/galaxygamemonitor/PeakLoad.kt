@@ -1,10 +1,15 @@
 package dev.ryuya.galaxygamemonitor
 
+import java.io.File
+
 internal data class CpuPolicy(
-    val path: java.io.File,
+    val path: File,
     val peakKHz: Long,
     val coreCapacities: Map<Int, Long>,
-)
+) {
+    val timeInState = File(path, "stats/time_in_state")
+    val currentFrequency = File(path, "scaling_cur_freq")
+}
 
 internal data class CpuTime(val busy: Long, val total: Long) {
     fun since(previous: CpuTime): CpuTime? {

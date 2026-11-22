@@ -9,13 +9,19 @@ internal object DetailedGameMemory {
     fun readKiB(pids: IntArray): Long? {
         require(pids.isNotEmpty() && pids.size <= MAX_PROCESSES && pids.all { it > 0 })
         val processIds = pids.distinct().joinToString(" ")
-        val command = """
-            [ "$(id -u)" = 0 ] || exit 1
-            for pid in $processIds; do
-                /system/bin/dumpsys -t 2 meminfo --local -s "${'$'}pid" 2>/dev/null |
-                    /system/bin/grep -E 'MEMINFO in pid|TOTAL PSS:'
-            done
-        """.trimIndent()
+        val dump = "/system/bin/dumpsys -t 2 meminfo --local -s"
+        val command = if (pids.size == 1) {
+            // The single-process summary fits in the pipe. Replace the shell with dumpsys.
+            "exec $dump $processIds 2>/dev/null"
+        } else {
+            // Bound the combined output when a game has multiple processes.
+            """
+                for pid in $processIds; do
+                    $dump "${'$'}pid" 2>/dev/null |
+                        /system/bin/grep -E 'MEMINFO in pid|TOTAL PSS:'
+                done
+            """.trimIndent()
+        }
         val process = try {
             ProcessBuilder("su", "-c", command).redirectErrorStream(true).start()
         } catch (_: IOException) {
@@ -25,7 +31,6 @@ internal object DetailedGameMemory {
         }
 
         return try {
-            // Output is filtered to the process header and total row, so it fits in the pipe.
             if (!process.waitFor(3, TimeUnit.SECONDS) || process.exitValue() != 0) return null
             process.inputStream.bufferedReader().use { parseResidentPss(it.lineSequence(), pids) }
         } catch (_: IOException) {

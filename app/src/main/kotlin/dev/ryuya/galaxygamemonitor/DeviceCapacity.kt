@@ -9,6 +9,7 @@ import android.os.HardwarePropertiesManager
 import android.os.SystemClock
 import java.io.File
 import java.io.IOException
+import java.util.StringTokenizer
 
 internal class DeviceCapacity(private val context: Context) {
     data class CpuSample(val percentage: Double, val source: String, val peakRelative: Boolean)
@@ -146,15 +147,15 @@ internal class DeviceCapacity(private val context: Context) {
 
     private fun procTimes(): Map<Int, CpuTime>? = try {
         procStat.useLines { lines ->
-            lines.takeWhile { it.startsWith("cpu") }.mapNotNull { line ->
-                if (line.length < 4 || !line[3].isDigit()) return@mapNotNull null
-                val columns = line.split(WHITESPACE)
-                val core = columns.first().removePrefix("cpu").toIntOrNull() ?: return@mapNotNull null
-                val times = columns.drop(1).take(8).mapNotNull(String::toLongOrNull)
-                if (times.size != 8) return@mapNotNull null
-                val total = times.sum()
-                core to CpuTime(total - times[3] - times[4], total)
-            }.toMap().takeIf(Map<Int, CpuTime>::isNotEmpty)
+            val cores = mutableMapOf<Int, CpuTime>()
+            for (line in lines) {
+                if (!line.startsWith("cpu")) break
+                if (line.length < 4 || line[3] !in '0'..'9') continue
+                val fields = StringTokenizer(line)
+                val core = fields.nextToken().substring(3).toIntOrNull() ?: continue
+                readCpuTime(fields)?.let { cores[core] = it }
+            }
+            cores.takeIf { it.isNotEmpty() }
         }
     } catch (_: IOException) {
         null
@@ -162,28 +163,45 @@ internal class DeviceCapacity(private val context: Context) {
         null
     }
 
-    private fun clockTimes(policy: CpuPolicy): List<ClockTime> =
-        read(File(policy.path, "stats/time_in_state"))?.lineSequence()?.mapNotNull { line ->
-            val pair = line.trim().split(WHITESPACE)
-            val frequency = pair.firstOrNull()?.toLongOrNull() ?: return@mapNotNull null
-            val ticks = pair.getOrNull(1)?.toLongOrNull() ?: return@mapNotNull null
-            ClockTime(frequency, ticks)
-        }?.toList().orEmpty()
+    private fun readCpuTime(fields: StringTokenizer): CpuTime? {
+        var total = 0L
+        var idle = 0L
+        // Ignore guest counters. Their time is already in user and nice.
+        for (index in 0 until 8) {
+            if (!fields.hasMoreTokens()) return null
+            val ticks = fields.nextToken().toLongOrNull() ?: return null
+            total += ticks
+            if (index == 3 || index == 4) idle += ticks
+        }
+        return CpuTime(total - idle, total)
+    }
+
+    private fun clockTimes(policy: CpuPolicy): List<ClockTime> = try {
+        policy.timeInState.useLines { lines ->
+            buildList {
+                for (line in lines) {
+                    val fields = StringTokenizer(line)
+                    if (!fields.hasMoreTokens()) continue
+                    val frequency = fields.nextToken().toLongOrNull() ?: continue
+                    if (!fields.hasMoreTokens()) continue
+                    val ticks = fields.nextToken().toLongOrNull() ?: continue
+                    add(ClockTime(frequency, ticks))
+                }
+            }
+        }
+    } catch (_: IOException) {
+        emptyList()
+    } catch (_: SecurityException) {
+        emptyList()
+    }
 
     private fun currentClockFraction(policy: CpuPolicy): Double? =
-        number(File(policy.path, "scaling_cur_freq"))?.takeIf { it > 0 }
+        number(policy.currentFrequency)?.takeIf { it > 0 }
             ?.let { (it.toDouble() / policy.peakKHz).coerceAtMost(1.0) }
 
     private fun number(file: File): Long? = read(file)?.toLongOrNull()
 
-    private fun read(file: File): String? =
-        try {
-            file.readText().trim()
-        } catch (_: IOException) {
-            null
-        } catch (_: SecurityException) {
-            null
-        }
+    private fun read(file: File): String? = file.readKernelText()?.trim()
 
     companion object {
         private const val MIN_SAMPLE_MS = 150

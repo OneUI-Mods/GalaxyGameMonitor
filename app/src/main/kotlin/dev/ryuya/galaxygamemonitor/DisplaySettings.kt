@@ -157,11 +157,20 @@ class DisplaySettingsProvider : ContentProvider() {
         when (method) {
             DisplaySettings.READ -> Unit
             DisplaySettings.UPDATE -> update(owner, requireNotNull(extras))
-            DisplaySettings.READ_GAME_MEMORY -> return Bundle().apply {
-                val pids = requireNotNull(extras?.getIntArray(DisplaySettings.KEY_GAME_PIDS)).distinct().toIntArray()
-                for (group in pids.asList().chunked(DetailedGameMemory.MAX_PROCESSES)) {
-                    val sample = DetailedGameMemory.readKiB(group.toIntArray()) ?: return Bundle()
-                    putLong(DisplaySettings.KEY_GAME_RESIDENT_PSS, getLong(DisplaySettings.KEY_GAME_RESIDENT_PSS) + sample)
+            DisplaySettings.READ_GAME_MEMORY -> {
+                val pids = requireNotNull(extras?.getIntArray(DisplaySettings.KEY_GAME_PIDS))
+                if (pids.isEmpty()) return Bundle.EMPTY
+                val sample = if (pids.size <= DetailedGameMemory.MAX_PROCESSES) {
+                    DetailedGameMemory.readKiB(pids)
+                } else {
+                    var total = 0L
+                    for (group in pids.distinct().chunked(DetailedGameMemory.MAX_PROCESSES)) {
+                        total += DetailedGameMemory.readKiB(group.toIntArray()) ?: return Bundle.EMPTY
+                    }
+                    total
+                }
+                return if (sample == null) Bundle.EMPTY else Bundle().apply {
+                    putLong(DisplaySettings.KEY_GAME_RESIDENT_PSS, sample)
                 }
             }
             else -> throw IllegalArgumentException("Unknown monitor settings method")
@@ -225,7 +234,7 @@ class DisplaySettingsProvider : ContentProvider() {
 
 internal class GameBoosterDisplaySettings(
     context: Context,
-    private val onInvalidated: () -> Unit,
+    private val onCpuModeChanged: () -> Unit,
 ) {
     private val resolver = context.contentResolver
     private var observing = false
@@ -243,7 +252,6 @@ internal class GameBoosterDisplaySettings(
     @Synchronized
     private fun invalidate() {
         if (closed) return
-        onInvalidated()
         retryAfterMs = 0L
         cached = null
     }
@@ -281,6 +289,7 @@ internal class GameBoosterDisplaySettings(
             return lastKnown
         }
 
+        if (lastKnown.peakRelative != current.peakRelative) onCpuModeChanged()
         lastKnown = current
         cached = current
         if (lastReported != current.peakRelative) {

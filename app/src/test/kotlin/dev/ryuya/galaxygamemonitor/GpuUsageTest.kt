@@ -62,6 +62,14 @@ class GpuUsageTest {
         assertNull(reader.clockMhz())
     }
 
+    @Test fun scalarReadsKeepDataBeyondTheSmallBuffer() {
+        val counters = write("class/kgsl/kgsl-3d0/gpubusy", " ".repeat(127) + "80 100\n")
+        val reader = GpuUsage(sysfs.root)
+        assertEquals(GpuUsage.Sample("gpubusy", 80.0), reader.read())
+        counters.writeText("80 100" + " ".repeat(122) + "3")
+        assertNull(reader.read())
+    }
+
     private fun write(path: String, contents: String): File = File(sysfs.root, path).apply {
         parentFile?.mkdirs()
         writeText(contents)

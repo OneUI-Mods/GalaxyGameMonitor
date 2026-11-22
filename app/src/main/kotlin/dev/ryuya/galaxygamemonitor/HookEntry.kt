@@ -166,17 +166,17 @@ class HookEntry : XposedModule() {
         val users = context.getSystemService(UserManager::class.java)
         val overlay = monitorOverlay ?: MonitorOverlay(context, monitorCapture).also { monitorOverlay = it }
         val gameRam = gameMemory ?: GameMemory(context).also { gameMemory = it }
+        val monitorRequest = MonitorTelemetry.RequestClassifier()
 
         hook(method).setId("gos-monitor-request").intercept { chain ->
             val arguments = chain.args
             val input = arguments.getOrNull(1) as? String
             if (retired || arguments.firstOrNull() != PERF_REQUEST || input == null ||
-                users?.isUserUnlocked != true
+                !monitorRequest.matches(input) || users?.isUserUnlocked != true
             ) return@intercept chain.proceed()
 
-            val isMonitorRequest = runCatching { MonitorTelemetry.isMonitorRequest(input) }.getOrDefault(false)
             val raw = chain.proceed()
-            if (!isMonitorRequest || raw !is String || retired) return@intercept raw
+            if (raw !is String || retired) return@intercept raw
 
             runCatching {
                 val settings = displaySettings.settings()
@@ -222,8 +222,21 @@ internal object MonitorTelemetry {
 
     private const val GPU_LOAD = "gpu_load"
     private const val CPU_LOAD = "cpu_load_total"
+    private val monitorMetrics = listOf(CPU_LOAD, GPU_LOAD, "temp_lrpst", "game_fps", "gpu_utilization")
 
-    fun isMonitorRequest(input: String): Boolean {
+    class RequestClassifier {
+        @Volatile private var lastMonitorRequest: String? = null
+
+        fun matches(input: String): Boolean {
+            // Game Booster builds the same request JSON on each telemetry tick.
+            if (input == lastMonitorRequest) return true
+            val matches = runCatching { isMonitorRequest(input) }.getOrDefault(false)
+            if (matches) lastMonitorRequest = input
+            return matches
+        }
+    }
+
+    private fun isMonitorRequest(input: String): Boolean {
         val request = JSONObject(input)
         if (request.optInt("session") != -1 || request.optLong("start") >= 0 ||
             request.optLong("end") != 0L
@@ -231,7 +244,7 @@ internal object MonitorTelemetry {
 
         val entries = request.optJSONArray("params") ?: return false
         val keys = (0 until entries.length()).mapNotNull { entries.optJSONObject(it)?.optString("param") }
-        return keys.containsAll(listOf(CPU_LOAD, GPU_LOAD, "temp_lrpst", "game_fps", "gpu_utilization"))
+        return keys.containsAll(monitorMetrics)
     }
 
     fun update(
