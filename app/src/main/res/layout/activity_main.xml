@@ -56,6 +56,14 @@
                     android:layout_height="wrap_content"
                     android:contentDescription="@string/monitor_items_per_row" />
 
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/reorder_monitor_items"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:minHeight="48dp"
+                    android:text="@string/monitor_order" />
+
                 <LinearLayout
                     android:id="@+id/monitor_items"
                     android:layout_width="match_parent"

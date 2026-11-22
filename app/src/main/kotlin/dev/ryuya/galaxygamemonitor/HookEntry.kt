@@ -25,6 +25,7 @@ class HookEntry : XposedModule() {
     private var connectedProxy: Class<*>? = null
     private var monitorOverlay: MonitorOverlay? = null
     private var monitorSettingsEntry: GameBoosterMonitorSettings? = null
+    private var gameMemory: GameMemory? = null
     @Volatile private var retired = false
     private val loggedCpu = AtomicBoolean()
     private val loggedGpu = AtomicBoolean()
@@ -49,6 +50,7 @@ class HookEntry : XposedModule() {
         attached.values.forEach(GameBoosterDisplaySettings::close)
         monitorOverlay?.close()
         monitorSettingsEntry?.close()
+        gameMemory?.close()
         return true
     }
 
@@ -133,6 +135,7 @@ class HookEntry : XposedModule() {
         val displaySettings = GameBoosterDisplaySettings(context, capacity::resetCpuSample)
         val users = context.getSystemService(UserManager::class.java)
         val overlay = monitorOverlay ?: MonitorOverlay(context).also { monitorOverlay = it }
+        val gameRam = gameMemory ?: GameMemory(context).also { gameMemory = it }
 
         hook(method).setId("gos-monitor-request").intercept { chain ->
             val arguments = chain.args
@@ -149,10 +152,11 @@ class HookEntry : XposedModule() {
                 val settings = displaySettings.settings()
                 if (overlay.supported) {
                     val clock = if (settings.shows(MonitorItem.GPU_CLOCK)) capacity.gpuClockMhz() else null
-                    val battery = if (settings.shows(MonitorItem.BATTERY_TEMPERATURE)) {
-                        capacity.batteryTemperatureTenthsC()
-                    } else null
-                    overlay.submit(MonitorOverlay.Reading(settings, clock, battery))
+                    val battery = if (settings.shows(MonitorItem.BATTERY_TEMPERATURE) ||
+                        settings.shows(MonitorItem.BATTERY_LEVEL)
+                    ) capacity.battery() else null
+                    val gameRamKiB = if (settings.shows(MonitorItem.GAME_RAM)) gameRam.readKiB() else null
+                    overlay.submit(MonitorOverlay.Reading(settings, clock, battery, gameRamKiB))
                 }
                 val transformed = MonitorTelemetry.update(raw, capacity, settings.peakRelative)
                     ?: return@runCatching raw

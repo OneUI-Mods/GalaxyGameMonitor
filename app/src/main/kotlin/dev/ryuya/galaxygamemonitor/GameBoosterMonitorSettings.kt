@@ -11,6 +11,7 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.SeekBar
@@ -29,6 +30,7 @@ internal class GameBoosterMonitorSettings(private val toolbarClass: Class<*>) {
     @Volatile var activity: WeakReference<Activity>? = null
         private set
     private var dialog: AlertDialog? = null
+    private var orderDialog: AlertDialog? = null
 
     fun attach(screen: Activity) {
         onMain {
@@ -60,6 +62,8 @@ internal class GameBoosterMonitorSettings(private val toolbarClass: Class<*>) {
     fun close() {
         closed = true
         onMain {
+            orderDialog?.dismiss()
+            orderDialog = null
             dialog?.dismiss()
             dialog = null
             activity = null
@@ -102,17 +106,42 @@ internal class GameBoosterMonitorSettings(private val toolbarClass: Class<*>) {
                 override fun onStopTrackingTouch(bar: SeekBar) = Unit
             })
         })
-        for (item in MonitorItem.entries) {
-            addSwitch(content, resources.getString(item.label), config.shows(item)) { visible ->
+        var itemOrder = config.order
+        val switches = LinearLayout(screen).apply { orientation = LinearLayout.VERTICAL }
+        val controls = MonitorItem.entries.associateWith { item ->
+            makeSwitch(switches, resources.getString(item.label), config.shows(item)) { visible ->
                 save(screen, Bundle().apply {
                     putInt(DisplaySettings.KEY_ITEM_BIT, item.bit)
                     putBoolean(DisplaySettings.KEY_ITEM_VISIBLE, visible)
                 })
             }
         }
-        addSwitch(content, resources.getString(R.string.peak_relative_toggle), config.peakRelative) { enabled ->
-            save(screen, Bundle().apply { putBoolean(DisplaySettings.KEY_PEAK_RELATIVE, enabled) })
+        fun arrangeSwitches() {
+            switches.removeAllViews()
+            for (item in itemOrder) switches.addView(controls.getValue(item))
         }
+        content.addView(Button(screen, null, android.R.attr.borderlessButtonStyle).apply {
+            text = resources.getString(R.string.monitor_order)
+            minHeight = dp(context, 48)
+            setOnClickListener {
+                orderDialog = MonitorOrderDialog.show(screen, resources, itemOrder) { order ->
+                    val saved = save(screen, Bundle().apply {
+                        putString(DisplaySettings.KEY_ITEM_ORDER, DisplaySettings.serializeOrder(order))
+                    })
+                    if (saved) {
+                        itemOrder = order
+                        arrangeSwitches()
+                    }
+                }.also { panel ->
+                    panel.setOnDismissListener { if (orderDialog === panel) orderDialog = null }
+                }
+            }
+        })
+        arrangeSwitches()
+        content.addView(switches)
+        content.addView(makeSwitch(content, resources.getString(R.string.peak_relative_toggle), config.peakRelative) { enabled ->
+            save(screen, Bundle().apply { putBoolean(DisplaySettings.KEY_PEAK_RELATIVE, enabled) })
+        })
         val scroll = ScrollView(screen).apply { addView(content) }
         dialog = AlertDialog.Builder(screen)
             .setTitle(resources.getString(R.string.monitor_items_heading))
@@ -124,23 +153,22 @@ internal class GameBoosterMonitorSettings(private val toolbarClass: Class<*>) {
             }
     }
 
-    private fun addSwitch(content: LinearLayout, label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-        content.addView(Switch(content.context).apply {
+    private fun makeSwitch(content: LinearLayout, label: String, checked: Boolean, onChange: (Boolean) -> Unit) =
+        Switch(content.context).apply {
             text = label
             minHeight = dp(context, 48)
             switchPadding = dp(context, 16)
             isChecked = checked
             setOnCheckedChangeListener { _, enabled -> onChange(enabled) }
-        })
-    }
+        }
 
-    private fun save(screen: Activity, changes: Bundle) {
-        if (closed) return
-        runCatching { DisplaySettings.updateRemote(screen, changes) }.onFailure {
+    private fun save(screen: Activity, changes: Bundle): Boolean {
+        if (closed) return false
+        return runCatching { DisplaySettings.updateRemote(screen, changes) }.onFailure {
             Log.w(TAG, "Unable to save monitor settings", it)
             dialog?.dismiss()
             showUnavailable(screen)
-        }
+        }.isSuccess
     }
 
     private fun showUnavailable(screen: Activity) {

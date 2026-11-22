@@ -54,8 +54,19 @@ class MainActivity : AppCompatActivity() {
             itemSwitch.setOnCheckedChangeListener { _, visible ->
                 if (!refreshing) DisplaySettings.setVisible(this, item, visible)
             }
-            items.addView(itemSwitch)
             itemSwitch
+        }
+        fun arrangeSwitches(order: List<MonitorItem>) {
+            if (order.withIndex().all { (index, item) -> items.getChildAt(index) === itemSwitches[item] }) return
+            items.removeAllViews()
+            for (item in order) items.addView(itemSwitches.getValue(item))
+        }
+        arrangeSwitches(settings.order)
+        findViewById<MaterialButton>(R.id.reorder_monitor_items).setOnClickListener {
+            MonitorOrderDialog.show(this, resources, DisplaySettings.read(this).order) { order ->
+                DisplaySettings.setOrder(this, order)
+                arrangeSwitches(order)
+            }
         }
 
         val mode = findViewById<MaterialTextView>(R.id.mode)
@@ -74,6 +85,7 @@ class MainActivity : AppCompatActivity() {
             refreshing = true
             perRow.value = latest.itemsPerRow.toFloat()
             toggle.isChecked = latest.peakRelative
+            arrangeSwitches(latest.order)
             for ((item, itemSwitch) in itemSwitches) itemSwitch.isChecked = latest.shows(item)
             refreshing = false
         }

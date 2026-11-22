@@ -6,9 +6,11 @@ Show CPU and GPU usage measured by the kernel in Game Booster’s system monitor
 
 On devices that expose the current GPU clock, the overlay shows it in MHz next to GPU usage.
 
-Use **System monitor items** to show or hide FPS, CPU usage, GPU usage, GPU clock, RAM usage, and battery temperature individually. Battery temperature is shown in degrees Celsius to one decimal place.
+Use **System monitor items** to show or hide FPS, CPU usage, GPU usage, GPU clock, system RAM usage, game RAM, battery level, and battery temperature individually. Battery temperature is shown in degrees Celsius to one decimal place.
 
-Choose 1 to 6 items per row. The default is 4. The same controls are available under **Monitor** in Game Booster settings.
+Game RAM is the resident proportional set size (PSS) of the foreground game's processes in GiB.
+
+Choose 1 to 8 items per row. The default is 4. Use **Reorder items** to move metrics up or down. The same controls are available under **Monitor** in Game Booster settings.
 
 Enable the module in Vector or another framework with libxposed API 102 and reload Game Booster. Launch a game and open **System monitor** in Game Booster.
 

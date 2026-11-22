@@ -17,7 +17,12 @@ import kotlin.math.ceil
 import kotlin.math.roundToInt
 
 internal class MonitorOverlay(context: Context) {
-    data class Reading(val settings: MonitorSettings, val clockMhz: Int?, val batteryTenthsC: Int?)
+    data class Reading(
+        val settings: MonitorSettings,
+        val clockMhz: Int?,
+        val battery: DeviceCapacity.BatterySample?,
+        val gameRamKiB: Long?,
+    )
 
     private val rootId = resourceId(context, "sgl_performance_monitor_bg")
     private val itemsId = resourceId(context, "cl_performance_monitor_items")
@@ -39,6 +44,11 @@ internal class MonitorOverlay(context: Context) {
     private val temperatures = NumberFormat.getNumberInstance(context.resources.configuration.locales[0]).apply {
         minimumFractionDigits = 1
         maximumFractionDigits = 1
+        isGroupingUsed = false
+    }
+    private val gigabytes = NumberFormat.getNumberInstance(context.resources.configuration.locales[0]).apply {
+        minimumFractionDigits = 2
+        maximumFractionDigits = 2
         isGroupingUsed = false
     }
     private val detachListener = object : View.OnAttachStateChangeListener {
@@ -74,10 +84,14 @@ internal class MonitorOverlay(context: Context) {
         if (reading == previous) return
         val active = binding ?: bind() ?: return
         if (previous?.settings?.visibleItems != reading.settings.visibleItems ||
-            previous.settings.itemsPerRow != reading.settings.itemsPerRow
+            previous.settings.itemsPerRow != reading.settings.itemsPerRow ||
+            previous.settings.order != reading.settings.order
         ) arrangeRows(active, reading.settings)
-        setReading(active.clock.value, reading.clockMhz?.toString())
-        setReading(active.battery.value, reading.batteryTenthsC?.let { temperatures.format(it / 10.0) })
+        setReading(active.extra.getValue(MonitorItem.GPU_CLOCK), reading.clockMhz?.toString())
+        setReading(active.extra.getValue(MonitorItem.GAME_RAM), reading.gameRamKiB?.let { gigabytes.format(it / 1_048_576.0) })
+        setReading(active.extra.getValue(MonitorItem.BATTERY_LEVEL), reading.battery?.percent?.toString())
+        setReading(active.extra.getValue(MonitorItem.BATTERY_TEMPERATURE),
+            reading.battery?.temperatureTenthsC?.let { temperatures.format(it / 10.0) })
         lastReading = reading
     }
 
@@ -88,7 +102,7 @@ internal class MonitorOverlay(context: Context) {
 
     private fun arrangeRows(active: Binding, settings: MonitorSettings) {
         clearRows(active.grid)
-        val rows = MonitorItem.entries.filter(settings::shows).chunked(settings.itemsPerRow)
+        val rows = settings.order.filter(settings::shows).chunked(settings.itemsPerRow)
         val gap = (3 * active.grid.resources.displayMetrics.density).roundToInt()
         for ((index, items) in rows.withIndex()) {
             val row = LinearLayout(active.grid.context).apply { orientation = LinearLayout.HORIZONTAL }
@@ -112,17 +126,20 @@ internal class MonitorOverlay(context: Context) {
             StockColumn(item, column, column.layoutParams, container.indexOfChild(column))
         }.sortedBy(StockColumn::index)
         val template = stockColumns.first { it.item == MonitorItem.GPU }.view.getChildAt(0) ?: return null
-        val clock = extraColumn(template, "MHz") ?: return null
-        val battery = extraColumn(template, "BAT °C") ?: return null
+        val extraColumns = mapOf(
+            MonitorItem.GPU_CLOCK to "MHz",
+            MonitorItem.GAME_RAM to "GAME GiB",
+            MonitorItem.BATTERY_LEVEL to "BAT %",
+            MonitorItem.BATTERY_TEMPERATURE to "BAT °C",
+        ).mapValues { (_, label) -> extraColumn(template, label) ?: return null }
         val columns = stockColumns.associate { it.item to it.view }.toMutableMap().apply {
-            put(MonitorItem.GPU_CLOCK, clock.view)
-            put(MonitorItem.BATTERY_TEMPERATURE, battery.view)
+            for ((item, column) in extraColumns) put(item, column.view)
         }
         val grid = LinearLayout(container.context).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
         }
-        val active = Binding(root, root.visibility, container, grid, stockColumns, columns, clock, battery)
+        val active = Binding(root, root.visibility, container, grid, stockColumns, columns, extraColumns.mapValues { it.value.value })
         binding = active
         root.addOnAttachStateChangeListener(detachListener)
         for (column in stockColumns) container.removeView(column.view)
@@ -198,8 +215,7 @@ internal class MonitorOverlay(context: Context) {
         val grid: LinearLayout,
         val stock: List<StockColumn>,
         val columns: Map<MonitorItem, View>,
-        val clock: ExtraColumn,
-        val battery: ExtraColumn,
+        val extra: Map<MonitorItem, TextView>,
     )
 
     private companion object {

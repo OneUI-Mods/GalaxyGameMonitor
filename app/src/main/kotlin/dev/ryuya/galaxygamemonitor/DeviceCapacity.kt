@@ -12,6 +12,7 @@ import java.io.IOException
 
 internal class DeviceCapacity(private val context: Context) {
     data class CpuSample(val percentage: Double, val source: String, val peakRelative: Boolean)
+    data class BatterySample(val temperatureTenthsC: Int?, val percent: Int?)
 
     private data class Counters(
         val timeMs: Long,
@@ -26,13 +27,15 @@ internal class DeviceCapacity(private val context: Context) {
     private val gpu = GpuUsage()
     private val batteryTempFile = File("/sys/class/power_supply/battery/temp")
     private val canReadBatteryTemp by lazy(batteryTempFile::canRead)
+    private val batteryCapacityFile = File("/sys/class/power_supply/battery/capacity")
+    private val canReadBatteryCapacity by lazy(batteryCapacityFile::canRead)
     private val procStat = File("/proc/stat")
     private val canReadProcStat by lazy(procStat::canRead)
     private val hardwareManager by lazy { context.getSystemService(HardwarePropertiesManager::class.java) }
     private var previous: Counters? = null
     private var retryHardwareManagerAfterMs = 0L
     private var nextBatteryReadingMs = 0L
-    private var batteryTemperature: Int? = null
+    private var lastBattery = BatterySample(null, null)
 
     @Synchronized
     fun resetCpuSample() {
@@ -103,22 +106,30 @@ internal class DeviceCapacity(private val context: Context) {
     fun gpuClockMhz(): Int? = gpu.clockMhz()
 
     @Synchronized
-    fun batteryTemperatureTenthsC(): Int? {
+    fun battery(): BatterySample {
         val now = SystemClock.elapsedRealtime()
-        if (now < nextBatteryReadingMs) return batteryTemperature
+        if (now < nextBatteryReadingMs) return lastBattery
         nextBatteryReadingMs = now + BATTERY_SAMPLE_MS
-        batteryTemperature = if (canReadBatteryTemp) number(batteryTempFile)
+        val temperature = if (canReadBatteryTemp) number(batteryTempFile)
             ?.takeIf { it in -400..1000 }?.toInt() else null
-        if (batteryTemperature != null) return batteryTemperature
-
-        val battery = runCatching {
-            context.registerReceiver(null, BATTERY_CHANGED, Context.RECEIVER_NOT_EXPORTED)
-        }.getOrNull()
-        batteryTemperature = battery?.takeIf { it.getBooleanExtra(BatteryManager.EXTRA_PRESENT, true) }
+        val percent = if (canReadBatteryCapacity) number(batteryCapacityFile)
+            ?.takeIf { it in 0..100 }?.toInt() else null
+        val broadcast = if (temperature == null || percent == null) batteryBroadcast() else null
+        val reportedTemperature = broadcast
             ?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, Int.MIN_VALUE)
             ?.takeIf { it in -400..1000 }
-        return batteryTemperature
+        val reportedPercent = broadcast?.let {
+            val level = it.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+            val scale = it.getIntExtra(BatteryManager.EXTRA_SCALE, 0)
+            if (scale > 0 && level in 0..scale) ((100L * level + scale / 2) / scale).toInt() else null
+        }
+        lastBattery = BatterySample(temperature ?: reportedTemperature, percent ?: reportedPercent)
+        return lastBattery
     }
+
+    private fun batteryBroadcast(): Intent? = runCatching {
+        context.registerReceiver(null, BATTERY_CHANGED, Context.RECEIVER_NOT_EXPORTED)
+    }.getOrNull()?.takeIf { it.getBooleanExtra(BatteryManager.EXTRA_PRESENT, true) }
 
     private fun hardwareTimes(now: Long): Map<Int, CpuTime>? {
         if (now < retryHardwareManagerAfterMs) return null
