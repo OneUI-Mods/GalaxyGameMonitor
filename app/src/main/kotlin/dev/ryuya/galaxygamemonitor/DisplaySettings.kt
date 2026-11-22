@@ -16,7 +16,7 @@ internal object DisplaySettings {
     const val GAME_BOOSTER = "com.samsung.android.game.gametools"
     const val READ = "get_display_settings"
     const val KEY_PEAK_RELATIVE = "peak_relative"
-    const val DEFAULT_PEAK_RELATIVE = true
+    const val DEFAULT_PEAK_RELATIVE = false
     // ContentService otherwise batches notifications for background processes.
     private const val NOTIFY_NO_DELAY = 1 shl 15
     val uri: Uri = Uri.parse("content://dev.ryuya.galaxygamemonitor.settings/display")
@@ -134,7 +134,7 @@ internal class GameBoosterDisplaySettings(
         cached = current
         if (lastReported != current) {
             lastReported = current
-            Log.i("GalaxyGameMonitor", if (current) "Display mode: peak-relative" else "Display mode: stock")
+            Log.i("GalaxyGameMonitor", if (current) "CPU mode: peak-relative" else "CPU mode: busy time")
         }
         return current
     }

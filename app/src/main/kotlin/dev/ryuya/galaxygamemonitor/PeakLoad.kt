@@ -6,13 +6,30 @@ internal data class CpuPolicy(
     val coreCapacities: Map<Int, Long>,
 )
 
-internal data class CpuTime(val busy: Long, val total: Long)
+internal data class CpuTime(val busy: Long, val total: Long) {
+    fun since(previous: CpuTime): CpuTime? {
+        val busyDelta = busy - previous.busy
+        val totalDelta = total - previous.total
+        return CpuTime(busyDelta, totalDelta).takeIf { totalDelta > 0 && busyDelta in 0..totalDelta }
+    }
+
+    companion object {
+        fun usage(before: Map<Int, CpuTime>, after: Map<Int, CpuTime>): Double? {
+            var busy = 0L
+            var total = 0L
+            for ((core, current) in after) {
+                val delta = current.since(before[core] ?: continue) ?: continue
+                busy += delta.busy
+                total += delta.total
+            }
+            return if (total > 0) 100.0 * busy / total else null
+        }
+    }
+}
 
 internal data class ClockTime(val frequencyKHz: Long, val ticks: Long)
 
 internal object PeakLoad {
-    private val WHITESPACE = Regex("\\s+")
-
     fun cpu(
         policies: List<CpuPolicy>,
         before: Map<Int, CpuTime>,
@@ -30,10 +47,8 @@ internal object PeakLoad {
                 totalCapacity += capacity
                 val previous = before[core] ?: continue
                 val current = after[core] ?: continue
-                val elapsed = current.total - previous.total
-                val busy = current.busy - previous.busy
-                if (elapsed <= 0 || busy !in 0..elapsed) continue
-                work += capacity * (busy.toDouble() / elapsed) * clock
+                val delta = current.since(previous) ?: continue
+                work += capacity * (delta.busy.toDouble() / delta.total) * clock
                 measuredCores++
             }
         }
@@ -53,14 +68,5 @@ internal object PeakLoad {
             weightedKHz += current.frequencyKHz.toDouble() * delta
         }
         return if (ticks > 0) (weightedKHz / ticks / peakKHz).coerceIn(0.0, 1.0) else null
-    }
-
-    fun gpuBusyPercentage(counters: String): Double? {
-        val times = counters.trim().split(WHITESPACE, limit = 3)
-        if (times.size != 2) return null
-        val busy = times[0].toLongOrNull() ?: return null
-        val total = times[1].toLongOrNull() ?: return null
-        if (total <= 0 || busy !in 0..total) return null
-        return 100.0 * busy / total
     }
 }

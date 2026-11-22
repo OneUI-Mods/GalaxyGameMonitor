@@ -26,7 +26,7 @@ class MainActivity : AppCompatActivity() {
         val toggle = findViewById<MaterialSwitch>(R.id.peak_relative)
         toggle.isChecked = DisplaySettings.read(this)
         fun showMode(peakRelative: Boolean) {
-            mode.setText(if (peakRelative) R.string.mode_peak_relative else R.string.mode_stock)
+            mode.setText(if (peakRelative) R.string.mode_peak_relative else R.string.mode_kernel_usage)
         }
         showMode(toggle.isChecked)
         toggle.setOnCheckedChangeListener { _, peakRelative ->

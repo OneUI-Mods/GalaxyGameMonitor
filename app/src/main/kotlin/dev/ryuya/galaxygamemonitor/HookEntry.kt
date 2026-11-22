@@ -124,10 +124,13 @@ class HookEntry : XposedModule() {
                 val transformed = MonitorTelemetry.update(raw, capacity, displaySettings.isPeakRelative())
                     ?: return@runCatching raw
                 if (transformed.cpu != null && loggedCpu.compareAndSet(false, true)) {
-                    Log.i(TAG, "CPU peak-relative utilization active")
+                    val sample = transformed.cpu
+                    val mode = if (sample.peakRelative) "peak-relative" else "busy time"
+                    Log.i(TAG, "CPU usage active (${sample.source}, $mode): ${sample.percentage}%")
                 }
                 if (transformed.gpu != null && loggedGpu.compareAndSet(false, true)) {
-                    Log.i(TAG, "Qualcomm KGSL GPU usage active: ${transformed.gpu}%")
+                    val sample = transformed.gpu
+                    Log.i(TAG, "GPU driver usage active (${sample.source}): ${sample.percentage}%")
                 }
                 transformed.output
             }.getOrDefault(raw)
@@ -146,7 +149,7 @@ class HookEntry : XposedModule() {
 }
 
 internal object MonitorTelemetry {
-    data class Result(val output: String, val cpu: Double?, val gpu: Double?)
+    data class Result(val output: String, val cpu: DeviceCapacity.CpuSample?, val gpu: GpuUsage.Sample?)
 
     private const val GPU_LOAD = "gpu_load"
     private const val CPU_LOAD = "cpu_load_total"
@@ -170,14 +173,14 @@ internal object MonitorTelemetry {
         val reply = JSONObject(raw)
         if (!reply.optBoolean("successful")) return null
 
-        val cpu = if (peakRelativeCpu && reply.hasSamples(CPU_LOAD)) capacity.cpuUsage() else null
+        val cpu = if (reply.hasSamples(CPU_LOAD)) capacity.cpuUsage(peakRelativeCpu) else null
         val gpu = if (reply.hasSamples(GPU_LOAD)) capacity.gpuUsage() else null
         if (cpu == null && gpu == null) return null
 
-        if (cpu != null) reply.put(CPU_LOAD, JSONArray().put(kotlin.math.round(cpu)))
+        if (cpu != null) reply.put(CPU_LOAD, JSONArray().put(kotlin.math.round(cpu.percentage)))
         if (gpu != null) {
-            // KGSL exposes a complete sampling window as one reading.
-            reply.put(GPU_LOAD, JSONArray().put(gpu))
+            // Each driver reports one reading for its sampling window.
+            reply.put(GPU_LOAD, JSONArray().put(gpu.percentage))
         }
         return Result(reply.toString(), cpu, gpu)
     }

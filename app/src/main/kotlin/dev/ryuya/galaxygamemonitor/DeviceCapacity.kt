@@ -8,6 +8,8 @@ import java.io.File
 import java.io.IOException
 
 internal class DeviceCapacity(private val context: Context) {
+    data class CpuSample(val percentage: Double, val source: String, val peakRelative: Boolean)
+
     private data class Counters(
         val timeMs: Long,
         val fromHardwareManager: Boolean,
@@ -18,9 +20,12 @@ internal class DeviceCapacity(private val context: Context) {
     private val samsungS26UltraJapan = Build.MODEL == "SM-S948Q" && Build.SOC_MODEL == "SM8850"
     private val cpuDirectory = File("/sys/devices/system/cpu")
     private val policies by lazy(::readPolicies)
+    private val gpu = GpuUsage()
+    private val procStat = File("/proc/stat")
+    private val canReadProcStat by lazy(procStat::canRead)
     private val hardwareManager by lazy { context.getSystemService(HardwarePropertiesManager::class.java) }
     private var previous: Counters? = null
-    private var useHardwareManager = true
+    private var retryHardwareManagerAfterMs = 0L
 
     @Synchronized
     fun resetCpuSample() {
@@ -28,23 +33,34 @@ internal class DeviceCapacity(private val context: Context) {
     }
 
     @Synchronized
-    fun cpuUsage(): Double? {
-        if (policies.isEmpty()) return null
+    fun cpuUsage(peakRelative: Boolean): CpuSample? {
         val now = SystemClock.elapsedRealtime()
         val before = previous
         if (before != null && now - before.timeMs < MIN_SAMPLE_MS) return null
 
-        val cpu = if (useHardwareManager) hardwareTimes() else null
-        if (cpu == null) useHardwareManager = false
-        val times = cpu ?: procTimes() ?: return null
-        val clockTimes = policies.map(::clockTimes)
-        previous = Counters(now, useHardwareManager, times, clockTimes)
+        val kernelTimes = if (canReadProcStat) procTimes() else null
+        val times = kernelTimes ?: hardwareTimes(now) ?: return null
+        val fromHardwareManager = kernelTimes == null
+        val clockTimes = if (peakRelative) policies.map(::clockTimes) else emptyList()
+        previous = Counters(now, fromHardwareManager, times, clockTimes)
         if (before == null || now - before.timeMs > MAX_SAMPLE_MS ||
-            before.fromHardwareManager != useHardwareManager
+            before.fromHardwareManager != fromHardwareManager
         ) return null
 
+        val source = if (fromHardwareManager) "Android hardware service" else "/proc/stat"
+        if (peakRelative) {
+            peakCpuUsage(before, times, clockTimes)?.let { return CpuSample(it, source, true) }
+        }
+        return CpuTime.usage(before.cpu, times)?.let { CpuSample(it, source, false) }
+    }
+
+    private fun peakCpuUsage(
+        before: Counters,
+        times: Map<Int, CpuTime>,
+        clockTimes: List<List<ClockTime>>,
+    ): Double? {
         val fractions = policies.mapIndexed { index, policy ->
-            PeakLoad.averageClock(before.clocks[index], clockTimes[index], policy.peakKHz)
+            PeakLoad.averageClock(before.clocks.getOrElse(index) { emptyList() }, clockTimes[index], policy.peakKHz)
                 ?: currentClockFraction(policy)
                 ?: return null
         }
@@ -75,30 +91,37 @@ internal class DeviceCapacity(private val context: Context) {
         )
     }
 
-    fun gpuUsage(): Double? {
-        val counters = read(KGSL_GPU_BUSY) ?: return null
-        return PeakLoad.gpuBusyPercentage(counters)
-    }
+    fun gpuUsage(): GpuUsage.Sample? = gpu.read()
 
-    private fun hardwareTimes(): Map<Int, CpuTime>? =
-        try {
+    private fun hardwareTimes(now: Long): Map<Int, CpuTime>? {
+        if (now < retryHardwareManagerAfterMs) return null
+        val times = try {
             hardwareManager?.cpuUsages?.mapIndexedNotNull { index, value ->
                 value?.let { index to CpuTime(it.active, it.total) }
             }?.toMap()?.takeIf { it.values.any { sample -> sample.total > 0 } }
         } catch (_: RuntimeException) {
             null
         }
+        if (times == null) retryHardwareManagerAfterMs = now + 10_000
+        return times
+    }
 
-    private fun procTimes(): Map<Int, CpuTime>? {
-        return read(File("/proc/stat"))?.lineSequence()?.mapNotNull { line ->
-            if (!line.startsWith("cpu") || line.length < 4 || !line[3].isDigit()) return@mapNotNull null
-            val columns = line.split(WHITESPACE)
-            val core = columns.first().removePrefix("cpu").toIntOrNull() ?: return@mapNotNull null
-            val times = columns.drop(1).take(8).mapNotNull(String::toLongOrNull)
-            if (times.size != 8) return@mapNotNull null
-            val total = times.sum()
-            core to CpuTime(total - times[3] - times[4], total)
-        }?.toMap()?.takeIf(Map<Int, CpuTime>::isNotEmpty)
+    private fun procTimes(): Map<Int, CpuTime>? = try {
+        procStat.useLines { lines ->
+            lines.takeWhile { it.startsWith("cpu") }.mapNotNull { line ->
+                if (line.length < 4 || !line[3].isDigit()) return@mapNotNull null
+                val columns = line.split(WHITESPACE)
+                val core = columns.first().removePrefix("cpu").toIntOrNull() ?: return@mapNotNull null
+                val times = columns.drop(1).take(8).mapNotNull(String::toLongOrNull)
+                if (times.size != 8) return@mapNotNull null
+                val total = times.sum()
+                core to CpuTime(total - times[3] - times[4], total)
+            }.toMap().takeIf(Map<Int, CpuTime>::isNotEmpty)
+        }
+    } catch (_: IOException) {
+        null
+    } catch (_: SecurityException) {
+        null
     }
 
     private fun clockTimes(policy: CpuPolicy): List<ClockTime> =
@@ -125,7 +148,6 @@ internal class DeviceCapacity(private val context: Context) {
         }
 
     companion object {
-        private val KGSL_GPU_BUSY = File("/sys/class/kgsl/kgsl-3d0/gpubusy")
         private const val MIN_SAMPLE_MS = 150
         private const val MAX_SAMPLE_MS = 4_000
         private val WHITESPACE = Regex("\\s+")

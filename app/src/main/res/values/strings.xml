@@ -1,9 +1,9 @@
 <resources>
     <string name="app_name">Galaxy Game Monitor</string>
-    <string name="summary">Use the Qualcomm driver’s GPU usage reading in Game Booster.</string>
+    <string name="summary">Show CPU and GPU usage measured by the kernel in Game Booster.</string>
     <string name="peak_relative_toggle">Show CPU load relative to peak clock</string>
     <string name="mode_peak_relative">Game Booster shows clock-adjusted CPU load.</string>
-    <string name="mode_stock">Game Booster shows its standard CPU usage.</string>
+    <string name="mode_kernel_usage">Show the share of time the CPU was busy.</string>
     <string name="module_setup">Enable this module for Game Booster in Vector. The switch applies to the next monitor update.</string>
     <string name="reload_game_booster">Reload Game Booster</string>
     <string name="reload_running">Reloading Game Booster…</string>

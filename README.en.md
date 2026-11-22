@@ -2,11 +2,11 @@
 
 # Galaxy Game Monitor
 
-Show the GPU usage measured by the Qualcomm driver in Game Booster’s system monitor. If the GPU is busy for 80% of the sample interval, the monitor displays approximately 80%.
+Show CPU and GPU usage measured by the kernel in Game Booster’s system monitor. GPU support includes Adreno and the Xclipse and Mali GPUs used on Exynos devices.
 
 Enable the module in Vector or another framework with libxposed API 102 and reload Game Booster. Launch a game and open **System monitor** in Game Booster.
 
-In Galaxy Game Monitor, turn **Show CPU load relative to peak clock** on for clock-adjusted CPU load or off for Game Booster’s standard CPU usage. It is on by default. Changes apply on the next monitor update.
+The default CPU display shows the share of time the CPU was busy. Enable **Show CPU load relative to peak clock** for an estimate relative to peak capacity.
 
 After updating the module, choose **Reload Game Booster**, then return to your game. This button requires root access for Galaxy Game Monitor.
 
