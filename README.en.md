@@ -4,6 +4,8 @@
 
 Show CPU and GPU usage measured by the kernel in Game Booster’s system monitor. GPU support includes Adreno and the Xclipse and Mali GPUs used on Exynos devices.
 
+On devices that expose the current GPU clock, the overlay shows it in MHz next to GPU usage.
+
 Enable the module in Vector or another framework with libxposed API 102 and reload Game Booster. Launch a game and open **System monitor** in Game Booster.
 
 The default CPU display shows the share of time the CPU was busy. Enable **Show CPU load relative to peak clock** for an estimate relative to peak capacity.

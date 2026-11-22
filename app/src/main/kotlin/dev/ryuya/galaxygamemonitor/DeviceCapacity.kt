@@ -93,6 +93,8 @@ internal class DeviceCapacity(private val context: Context) {
 
     fun gpuUsage(): GpuUsage.Sample? = gpu.read()
 
+    fun gpuClockMhz(): Int? = gpu.clockMhz()
+
     private fun hardwareTimes(now: Long): Map<Int, CpuTime>? {
         if (now < retryHardwareManagerAfterMs) return null
         val times = try {

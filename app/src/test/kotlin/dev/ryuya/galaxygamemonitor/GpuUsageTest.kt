@@ -47,6 +47,21 @@ class GpuUsageTest {
         assertEquals(GpuUsage.Sample("gpu_busy_percent", 100.0), GpuUsage(sysfs.root).read())
     }
 
+    @Test fun gpuClockUsesLiveValuesAndHandlesDriverUnits() {
+        val kgsl = write("class/kgsl/kgsl-3d0/gpuclk", "422000000\n")
+        val exynos = write("kernel/gpu/gpu_clock", "650000")
+        val reader = GpuUsage(sysfs.root)
+        assertEquals(422, reader.clockMhz())
+        kgsl.writeText("191000000")
+        assertEquals(191, reader.clockMhz())
+        kgsl.writeText("0")
+        assertEquals(650, reader.clockMhz())
+        exynos.writeText("846")
+        assertEquals(846, reader.clockMhz())
+        exynos.writeText("frequency unavailable")
+        assertNull(reader.clockMhz())
+    }
+
     private fun write(path: String, contents: String): File = File(sysfs.root, path).apply {
         parentFile?.mkdirs()
         writeText(contents)
