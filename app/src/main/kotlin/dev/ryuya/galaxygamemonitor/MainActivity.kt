@@ -3,6 +3,7 @@ package dev.ryuya.galaxygamemonitor
 import android.os.Bundle
 import android.os.UserManager
 import android.view.View
+import android.widget.LinearLayout
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -22,9 +23,19 @@ class MainActivity : AppCompatActivity() {
             windowInsets
         }
 
+        val settings = DisplaySettings.read(this)
+        val items = findViewById<LinearLayout>(R.id.monitor_items)
+        for (item in MonitorItem.entries) {
+            val itemSwitch = layoutInflater.inflate(R.layout.monitor_item_switch, items, false) as MaterialSwitch
+            itemSwitch.setText(item.label)
+            itemSwitch.isChecked = settings.shows(item)
+            itemSwitch.setOnCheckedChangeListener { _, visible -> DisplaySettings.setVisible(this, item, visible) }
+            items.addView(itemSwitch)
+        }
+
         val mode = findViewById<MaterialTextView>(R.id.mode)
         val toggle = findViewById<MaterialSwitch>(R.id.peak_relative)
-        toggle.isChecked = DisplaySettings.read(this)
+        toggle.isChecked = settings.peakRelative
         fun showMode(peakRelative: Boolean) {
             mode.setText(if (peakRelative) R.string.mode_peak_relative else R.string.mode_kernel_usage)
         }

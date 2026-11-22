@@ -1,5 +1,12 @@
 <resources>
     <string name="app_name">Galaxy Game Monitor</string>
+    <string name="monitor_items_heading">System monitor items</string>
+    <string name="monitor_fps">Frame rate (FPS)</string>
+    <string name="monitor_cpu">CPU usage</string>
+    <string name="monitor_gpu">GPU usage</string>
+    <string name="monitor_gpu_clock">GPU clock</string>
+    <string name="monitor_ram">RAM usage</string>
+    <string name="monitor_battery_temperature">Battery temperature</string>
     <string name="summary">Show CPU and GPU usage measured by the kernel in Game Booster.</string>
     <string name="peak_relative_toggle">Show CPU load relative to peak clock</string>
     <string name="mode_peak_relative">Game Booster shows clock-adjusted CPU load.</string>

@@ -1,6 +1,9 @@
 package dev.ryuya.galaxygamemonitor
 
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.BatteryManager
 import android.os.Build
 import android.os.HardwarePropertiesManager
 import android.os.SystemClock
@@ -21,11 +24,15 @@ internal class DeviceCapacity(private val context: Context) {
     private val cpuDirectory = File("/sys/devices/system/cpu")
     private val policies by lazy(::readPolicies)
     private val gpu = GpuUsage()
+    private val batteryTempFile = File("/sys/class/power_supply/battery/temp")
+    private val canReadBatteryTemp by lazy(batteryTempFile::canRead)
     private val procStat = File("/proc/stat")
     private val canReadProcStat by lazy(procStat::canRead)
     private val hardwareManager by lazy { context.getSystemService(HardwarePropertiesManager::class.java) }
     private var previous: Counters? = null
     private var retryHardwareManagerAfterMs = 0L
+    private var nextBatteryReadingMs = 0L
+    private var batteryTemperature: Int? = null
 
     @Synchronized
     fun resetCpuSample() {
@@ -95,6 +102,24 @@ internal class DeviceCapacity(private val context: Context) {
 
     fun gpuClockMhz(): Int? = gpu.clockMhz()
 
+    @Synchronized
+    fun batteryTemperatureTenthsC(): Int? {
+        val now = SystemClock.elapsedRealtime()
+        if (now < nextBatteryReadingMs) return batteryTemperature
+        nextBatteryReadingMs = now + BATTERY_SAMPLE_MS
+        batteryTemperature = if (canReadBatteryTemp) number(batteryTempFile)
+            ?.takeIf { it in -400..1000 }?.toInt() else null
+        if (batteryTemperature != null) return batteryTemperature
+
+        val battery = runCatching {
+            context.registerReceiver(null, BATTERY_CHANGED, Context.RECEIVER_NOT_EXPORTED)
+        }.getOrNull()
+        batteryTemperature = battery?.takeIf { it.getBooleanExtra(BatteryManager.EXTRA_PRESENT, true) }
+            ?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, Int.MIN_VALUE)
+            ?.takeIf { it in -400..1000 }
+        return batteryTemperature
+    }
+
     private fun hardwareTimes(now: Long): Map<Int, CpuTime>? {
         if (now < retryHardwareManagerAfterMs) return null
         val times = try {
@@ -152,6 +177,8 @@ internal class DeviceCapacity(private val context: Context) {
     companion object {
         private const val MIN_SAMPLE_MS = 150
         private const val MAX_SAMPLE_MS = 4_000
+        private const val BATTERY_SAMPLE_MS = 3_000L
+        private val BATTERY_CHANGED = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
         private val WHITESPACE = Regex("\\s+")
         private val POLICY_NAME = Regex("policy[0-9]+")
     }

@@ -21,7 +21,7 @@ class HookEntry : XposedModule() {
     @Volatile private var hostLoader: ClassLoader? = null
     private var hostContext: Context? = null
     private var connectedProxy: Class<*>? = null
-    private var gpuClockOverlay: GpuClockOverlay? = null
+    private var monitorOverlay: MonitorOverlay? = null
     @Volatile private var retired = false
     private val loggedCpu = AtomicBoolean()
     private val loggedGpu = AtomicBoolean()
@@ -43,7 +43,7 @@ class HookEntry : XposedModule() {
         param.setSavedInstanceState(arrayOf(loader, hostContext, connectedProxy))
         retired = true
         attached.values.forEach(GameBoosterDisplaySettings::close)
-        gpuClockOverlay?.close()
+        monitorOverlay?.close()
         return true
     }
 
@@ -110,7 +110,7 @@ class HookEntry : XposedModule() {
         val capacity = DeviceCapacity(context)
         val displaySettings = GameBoosterDisplaySettings(context, capacity::resetCpuSample)
         val users = context.getSystemService(UserManager::class.java)
-        val overlay = gpuClockOverlay ?: GpuClockOverlay(context).also { gpuClockOverlay = it }
+        val overlay = monitorOverlay ?: MonitorOverlay(context).also { monitorOverlay = it }
 
         hook(method).setId("gos-monitor-request").intercept { chain ->
             val arguments = chain.args
@@ -124,8 +124,15 @@ class HookEntry : XposedModule() {
             if (!isMonitorRequest || raw !is String || retired) return@intercept raw
 
             runCatching {
-                if (overlay.supported) overlay.submit(capacity.gpuClockMhz())
-                val transformed = MonitorTelemetry.update(raw, capacity, displaySettings.isPeakRelative())
+                val settings = displaySettings.settings()
+                if (overlay.supported) {
+                    val clock = if (settings.shows(MonitorItem.GPU_CLOCK)) capacity.gpuClockMhz() else null
+                    val battery = if (settings.shows(MonitorItem.BATTERY_TEMPERATURE)) {
+                        capacity.batteryTemperatureTenthsC()
+                    } else null
+                    overlay.submit(MonitorOverlay.Reading(settings, clock, battery))
+                }
+                val transformed = MonitorTelemetry.update(raw, capacity, settings.peakRelative)
                     ?: return@runCatching raw
                 if (transformed.cpu != null && loggedCpu.compareAndSet(false, true)) {
                     val sample = transformed.cpu
