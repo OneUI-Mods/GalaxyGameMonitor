@@ -64,6 +64,15 @@
                     android:minHeight="48dp"
                     android:text="@string/monitor_order" />
 
+                <com.google.android.material.materialswitch.MaterialSwitch
+                    android:id="@+id/show_in_capture"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:minHeight="48dp"
+                    android:switchPadding="16dp"
+                    android:text="@string/monitor_show_in_capture"
+                    android:textAppearance="?attr/textAppearanceBodyLarge" />
+
                 <LinearLayout
                     android:id="@+id/monitor_items"
                     android:layout_width="match_parent"

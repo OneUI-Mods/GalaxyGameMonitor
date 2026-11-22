@@ -28,6 +28,7 @@ internal data class MonitorSettings(
     val visibleItems: Int,
     val itemsPerRow: Int,
     val order: List<MonitorItem>,
+    val showInCapture: Boolean,
 ) {
     fun shows(item: MonitorItem): Boolean = visibleItems and item.bit != 0
 }
@@ -40,6 +41,7 @@ internal object DisplaySettings {
     const val KEY_VISIBLE_ITEMS = "visible_items"
     const val KEY_ITEMS_PER_ROW = "items_per_row"
     const val KEY_ITEM_ORDER = "item_order"
+    const val KEY_SHOW_IN_CAPTURE = "show_in_capture"
     const val KEY_ITEM_BIT = "item_bit"
     const val KEY_ITEM_VISIBLE = "item_visible"
     const val DEFAULT_PEAK_RELATIVE = false
@@ -47,7 +49,7 @@ internal object DisplaySettings {
     private const val KEY_KNOWN_ITEMS = "known_items"
     private const val PREVIOUS_ITEMS = 0b111111
     val allItems = MonitorItem.entries.fold(0) { bits, item -> bits or item.bit }
-    val defaults = MonitorSettings(DEFAULT_PEAK_RELATIVE, allItems, DEFAULT_ITEMS_PER_ROW, MonitorItem.entries)
+    val defaults = MonitorSettings(DEFAULT_PEAK_RELATIVE, allItems, DEFAULT_ITEMS_PER_ROW, MonitorItem.entries, true)
     // ContentService otherwise batches notifications for background processes.
     private const val NOTIFY_NO_DELAY = 1 shl 15
     val uri: Uri = Uri.parse("content://dev.ryuya.galaxygamemonitor.settings/display")
@@ -60,6 +62,7 @@ internal object DisplaySettings {
             visible and allItems,
             rowCount(it.getInt(KEY_ITEMS_PER_ROW, DEFAULT_ITEMS_PER_ROW)),
             parseOrder(it.getString(KEY_ITEM_ORDER, null)),
+            it.getBoolean(KEY_SHOW_IN_CAPTURE, true),
         )
     }
 
@@ -92,6 +95,12 @@ internal object DisplaySettings {
         notifyChange(context)
     }
 
+    fun setShowInCapture(context: Context, visible: Boolean) {
+        if (read(context).showInCapture == visible) return
+        preferences(context).edit().putBoolean(KEY_SHOW_IN_CAPTURE, visible).apply()
+        notifyChange(context)
+    }
+
     fun serializeOrder(order: List<MonitorItem>): String = order.joinToString(",") { it.bit.toString() }
 
     private fun parseOrder(value: String?): List<MonitorItem> {
@@ -114,6 +123,7 @@ internal object DisplaySettings {
         bundle.getInt(KEY_VISIBLE_ITEMS, allItems) and allItems,
         rowCount(bundle.getInt(KEY_ITEMS_PER_ROW, DEFAULT_ITEMS_PER_ROW)),
         parseOrder(bundle.getString(KEY_ITEM_ORDER)),
+        bundle.getBoolean(KEY_SHOW_IN_CAPTURE, true),
     )
 
     private fun rowCount(count: Int) = count.coerceIn(1, MonitorItem.entries.size)
@@ -146,6 +156,7 @@ class DisplaySettingsProvider : ContentProvider() {
             putInt(DisplaySettings.KEY_VISIBLE_ITEMS, settings.visibleItems)
             putInt(DisplaySettings.KEY_ITEMS_PER_ROW, settings.itemsPerRow)
             putString(DisplaySettings.KEY_ITEM_ORDER, DisplaySettings.serializeOrder(settings.order))
+            putBoolean(DisplaySettings.KEY_SHOW_IN_CAPTURE, settings.showInCapture)
         }
     }
 
@@ -166,6 +177,8 @@ class DisplaySettingsProvider : ContentProvider() {
             }
             changes.containsKey(DisplaySettings.KEY_PEAK_RELATIVE) ->
                 DisplaySettings.set(owner, changes.getBoolean(DisplaySettings.KEY_PEAK_RELATIVE))
+            changes.containsKey(DisplaySettings.KEY_SHOW_IN_CAPTURE) ->
+                DisplaySettings.setShowInCapture(owner, changes.getBoolean(DisplaySettings.KEY_SHOW_IN_CAPTURE))
             else -> throw IllegalArgumentException("Missing monitor setting")
         }
     }

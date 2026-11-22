@@ -74,12 +74,14 @@ internal class GameMemory(private val context: Context) {
             return
         }
         // totalPss also includes swapped-out pages. Display the resident share of RAM.
-        residentPssKiB = activityManager.getProcessMemoryInfo(pids)
+        val memory = activityManager.getProcessMemoryInfo(pids)
+        residentPssKiB = memory
             .sumOf { it.dalvikPss.toLong() + it.nativePss + it.otherPss }
             .takeIf { it > 0 }
         if (residentPssKiB != null && !loggedSample) {
             loggedSample = true
-            Log.i(TAG, "Game RAM: ${residentPssKiB} KiB resident PSS across ${pids.size} process(es)")
+            val graphicsKiB = memory.sumOf { it.getMemoryStat("summary.graphics")?.toLongOrNull() ?: 0L }
+            Log.i(TAG, "Game RAM: ${residentPssKiB} KiB resident PSS across ${pids.size} process(es), graphics summary $graphicsKiB KiB")
         }
     }
 

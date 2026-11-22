@@ -14,6 +14,7 @@
     <string name="monitor_battery_level">Battery level</string>
     <string name="monitor_battery_temperature">Battery temperature</string>
     <string name="monitor_order">Reorder items</string>
+    <string name="monitor_show_in_capture">Show in screenshots and screen recordings</string>
     <string name="monitor_move_up">Move %1$s up</string>
     <string name="monitor_move_down">Move %1$s down</string>
     <string name="summary">Show CPU and GPU usage measured by the kernel in Game Booster.</string>

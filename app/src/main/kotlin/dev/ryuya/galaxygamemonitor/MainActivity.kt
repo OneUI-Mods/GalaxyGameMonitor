@@ -33,6 +33,11 @@ class MainActivity : AppCompatActivity() {
 
         val settings = DisplaySettings.read(this)
         var refreshing = false
+        val captureSwitch = findViewById<MaterialSwitch>(R.id.show_in_capture)
+        captureSwitch.isChecked = settings.showInCapture
+        captureSwitch.setOnCheckedChangeListener { _, visible ->
+            if (!refreshing) DisplaySettings.setShowInCapture(this, visible)
+        }
         val perRowLabel = findViewById<MaterialTextView>(R.id.items_per_row_value)
         val perRow = findViewById<Slider>(R.id.items_per_row)
         perRow.valueFrom = 1f
@@ -85,6 +90,7 @@ class MainActivity : AppCompatActivity() {
             refreshing = true
             perRow.value = latest.itemsPerRow.toFloat()
             toggle.isChecked = latest.peakRelative
+            captureSwitch.isChecked = latest.showInCapture
             arrangeSwitches(latest.order)
             for ((item, itemSwitch) in itemSwitches) itemSwitch.isChecked = latest.shows(item)
             refreshing = false

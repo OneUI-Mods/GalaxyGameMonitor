@@ -16,7 +16,7 @@ import java.text.NumberFormat
 import kotlin.math.ceil
 import kotlin.math.roundToInt
 
-internal class MonitorOverlay(context: Context) {
+internal class MonitorOverlay(context: Context, private val capture: MonitorCapture) {
     data class Reading(
         val settings: MonitorSettings,
         val clockMhz: Int?,
@@ -80,9 +80,10 @@ internal class MonitorOverlay(context: Context) {
 
     private fun render(reading: Reading) {
         if (binding?.root?.isAttachedToWindow == false) restore()
+        val active = binding ?: bind() ?: return
+        capture.update(active.root, reading.settings.showInCapture)
         val previous = lastReading
         if (reading == previous) return
-        val active = binding ?: bind() ?: return
         if (previous?.settings?.visibleItems != reading.settings.visibleItems ||
             previous.settings.itemsPerRow != reading.settings.itemsPerRow ||
             previous.settings.order != reading.settings.order

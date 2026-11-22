@@ -14,6 +14,7 @@
     <string name="monitor_battery_level">バッテリー残量</string>
     <string name="monitor_battery_temperature">バッテリー温度</string>
     <string name="monitor_order">表示項目の並び替え</string>
+    <string name="monitor_show_in_capture">スクリーンショット・画面録画に表示</string>
     <string name="monitor_move_up">%1$sを上へ</string>
     <string name="monitor_move_down">%1$sを下へ</string>
     <string name="summary">ゲームブースターに、カーネルが計測したCPUとGPUの使用率を表示します。</string>

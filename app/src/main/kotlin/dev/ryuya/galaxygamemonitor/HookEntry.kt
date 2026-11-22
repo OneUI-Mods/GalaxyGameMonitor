@@ -6,6 +6,9 @@ import android.content.Context
 import android.os.IBinder
 import android.os.UserManager
 import android.util.Log
+import android.view.View
+import android.view.ViewGroup
+import android.view.WindowManager
 import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedModuleInterface.HotReloadedParam
 import io.github.libxposed.api.XposedModuleInterface.HotReloadingParam
@@ -26,6 +29,7 @@ class HookEntry : XposedModule() {
     private var monitorOverlay: MonitorOverlay? = null
     private var monitorSettingsEntry: GameBoosterMonitorSettings? = null
     private var gameMemory: GameMemory? = null
+    private val monitorCapture = MonitorCapture()
     @Volatile private var retired = false
     private val loggedCpu = AtomicBoolean()
     private val loggedGpu = AtomicBoolean()
@@ -40,6 +44,7 @@ class HookEntry : XposedModule() {
 
         installConnectionHook(param.classLoader)
         installSettingsHook(param.classLoader)
+        installCaptureHook()
     }
 
     @Synchronized
@@ -51,6 +56,7 @@ class HookEntry : XposedModule() {
         monitorOverlay?.close()
         monitorSettingsEntry?.close()
         gameMemory?.close()
+        monitorCapture.retire()
         return true
     }
 
@@ -61,6 +67,7 @@ class HookEntry : XposedModule() {
         if (param.processName != DisplaySettings.GAME_BOOSTER) return
         if (!installConnectionHook(loader)) return
         installSettingsHook(loader)
+        installCaptureHook()
         val openSettings = (state.getOrNull(3) as? WeakReference<*>)?.get() as? Activity
         if (openSettings != null) monitorSettingsEntry?.attach(openSettings)
         val context = state.getOrNull(1) as? Context
@@ -87,6 +94,23 @@ class HookEntry : XposedModule() {
             }
             monitorSettingsEntry = entry
         }.onFailure { Log.w(TAG, "Game Booster settings hook unavailable", it) }
+    }
+
+    private fun installCaptureHook() {
+        runCatching {
+            val addWindow = Class.forName("android.view.WindowManagerImpl")
+                .getDeclaredMethod("addView", View::class.java, ViewGroup.LayoutParams::class.java)
+            hook(addWindow).setId("monitor-capture-window").intercept { chain ->
+                val result = chain.proceed()
+                val params = chain.args.getOrNull(1) as? WindowManager.LayoutParams
+                if (!retired && params?.title?.contentEquals("GameBooster PerformanceMonitor") == true) {
+                    runCatching {
+                        (chain.args.firstOrNull() as? View)?.let(monitorCapture::onWindowAdded)
+                    }.onFailure { Log.w(TAG, "Could not initialize monitor capture policy", it) }
+                }
+                result
+            }
+        }.onFailure { Log.w(TAG, "Monitor capture window hook unavailable", it) }
     }
 
     private fun installConnectionHook(loader: ClassLoader): Boolean {
@@ -134,7 +158,7 @@ class HookEntry : XposedModule() {
         val capacity = DeviceCapacity(context)
         val displaySettings = GameBoosterDisplaySettings(context, capacity::resetCpuSample)
         val users = context.getSystemService(UserManager::class.java)
-        val overlay = monitorOverlay ?: MonitorOverlay(context).also { monitorOverlay = it }
+        val overlay = monitorOverlay ?: MonitorOverlay(context, monitorCapture).also { monitorOverlay = it }
         val gameRam = gameMemory ?: GameMemory(context).also { gameMemory = it }
 
         hook(method).setId("gos-monitor-request").intercept { chain ->

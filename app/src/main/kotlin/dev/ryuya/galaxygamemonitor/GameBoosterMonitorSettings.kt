@@ -137,6 +137,9 @@ internal class GameBoosterMonitorSettings(private val toolbarClass: Class<*>) {
                 }
             }
         })
+        content.addView(makeSwitch(content, resources.getString(R.string.monitor_show_in_capture), config.showInCapture) { visible ->
+            save(screen, Bundle().apply { putBoolean(DisplaySettings.KEY_SHOW_IN_CAPTURE, visible) })
+        })
         arrangeSwitches()
         content.addView(switches)
         content.addView(makeSwitch(content, resources.getString(R.string.peak_relative_toggle), config.peakRelative) { enabled ->

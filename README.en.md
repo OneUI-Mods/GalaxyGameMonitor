@@ -8,9 +8,11 @@ On devices that expose the current GPU clock, the overlay shows it in MHz next t
 
 Use **System monitor items** to show or hide FPS, CPU usage, GPU usage, GPU clock, system RAM usage, game RAM, battery level, and battery temperature individually. Battery temperature is shown in degrees Celsius to one decimal place.
 
-Game RAM is the resident proportional set size (PSS) of the foreground game's processes in GiB.
+Game RAM is the resident proportional set size (PSS) of the foreground game's processes in GiB, including graphics memory that Android attributes to them.
 
 Choose 1 to 8 items per row. The default is 4. Use **Reorder items** to move metrics up or down. The same controls are available under **Monitor** in Game Booster settings.
+
+Turn off **Show in screenshots and screen recordings** to exclude the monitor from captured output while it remains visible on the device. The setting is on by default.
 
 Enable the module in Vector or another framework with libxposed API 102 and reload Game Booster. Launch a game and open **System monitor** in Game Booster.
 
