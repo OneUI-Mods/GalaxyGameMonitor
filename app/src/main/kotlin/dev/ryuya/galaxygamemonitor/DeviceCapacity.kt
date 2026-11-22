@@ -102,9 +102,8 @@ internal class DeviceCapacity(private val context: Context) {
         )
     }
 
-    fun gpuUsage(): GpuUsage.Sample? = gpu.read()
-
-    fun gpuClockMhz(): Int? = gpu.clockMhz()
+    fun gpuReading(includeUsage: Boolean, peakRelative: Boolean, includeClock: Boolean): GpuUsage.Reading =
+        gpu.sample(includeUsage, peakRelative, includeClock)
 
     @Synchronized
     fun battery(): BatterySample {

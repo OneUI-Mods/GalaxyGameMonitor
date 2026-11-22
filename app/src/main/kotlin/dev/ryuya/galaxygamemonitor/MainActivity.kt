@@ -82,14 +82,26 @@ class MainActivity : AppCompatActivity() {
         }
         showMode(toggle.isChecked)
         toggle.setOnCheckedChangeListener { _, peakRelative ->
-            if (!refreshing) DisplaySettings.set(this, peakRelative)
+            if (!refreshing) DisplaySettings.setCpuPeakRelative(this, peakRelative)
             showMode(peakRelative)
+        }
+        val gpuMode = findViewById<MaterialTextView>(R.id.gpu_mode)
+        val gpuToggle = findViewById<MaterialSwitch>(R.id.gpu_peak_relative)
+        fun showGpuMode(peakRelative: Boolean) {
+            gpuMode.setText(if (peakRelative) R.string.gpu_mode_peak_relative else R.string.gpu_mode_driver_usage)
+        }
+        gpuToggle.isChecked = settings.gpuPeakRelative
+        showGpuMode(gpuToggle.isChecked)
+        gpuToggle.setOnCheckedChangeListener { _, peakRelative ->
+            if (!refreshing) DisplaySettings.setGpuPeakRelative(this, peakRelative)
+            showGpuMode(peakRelative)
         }
         refreshSettings = {
             val latest = DisplaySettings.read(this)
             refreshing = true
             perRow.value = latest.itemsPerRow.toFloat()
             toggle.isChecked = latest.peakRelative
+            gpuToggle.isChecked = latest.gpuPeakRelative
             captureSwitch.isChecked = latest.showInCapture
             arrangeSwitches(latest.order)
             for ((item, itemSwitch) in itemSwitches) itemSwitch.isChecked = latest.shows(item)

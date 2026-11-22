@@ -118,6 +118,24 @@
                     android:accessibilityLiveRegion="polite"
                     android:textAppearance="?attr/textAppearanceBodyMedium"
                     android:textColor="?attr/colorOnSurfaceVariant" />
+
+                <com.google.android.material.materialswitch.MaterialSwitch
+                    android:id="@+id/gpu_peak_relative"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:minHeight="56dp"
+                    android:switchPadding="16dp"
+                    android:text="@string/gpu_peak_relative_toggle"
+                    android:textAppearance="?attr/textAppearanceTitleMedium" />
+
+                <com.google.android.material.textview.MaterialTextView
+                    android:id="@+id/gpu_mode"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:accessibilityLiveRegion="polite"
+                    android:textAppearance="?attr/textAppearanceBodyMedium"
+                    android:textColor="?attr/colorOnSurfaceVariant" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 

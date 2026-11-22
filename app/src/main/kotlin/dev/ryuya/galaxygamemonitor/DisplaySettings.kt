@@ -25,6 +25,7 @@ internal enum class MonitorItem(val bit: Int, val label: Int) {
 
 internal data class MonitorSettings(
     val peakRelative: Boolean,
+    val gpuPeakRelative: Boolean,
     val visibleItems: Int,
     val itemsPerRow: Int,
     val order: List<MonitorItem>,
@@ -41,6 +42,7 @@ internal object DisplaySettings {
     const val KEY_GAME_PIDS = "game_pids"
     const val KEY_GAME_RESIDENT_PSS = "game_resident_pss"
     const val KEY_PEAK_RELATIVE = "peak_relative"
+    const val KEY_GPU_PEAK_RELATIVE = "gpu_peak_relative"
     const val KEY_VISIBLE_ITEMS = "visible_items"
     const val KEY_ITEMS_PER_ROW = "items_per_row"
     const val KEY_ITEM_ORDER = "item_order"
@@ -52,7 +54,7 @@ internal object DisplaySettings {
     private const val KEY_KNOWN_ITEMS = "known_items"
     private const val PREVIOUS_ITEMS = 0b111111
     val allItems = MonitorItem.entries.fold(0) { bits, item -> bits or item.bit }
-    val defaults = MonitorSettings(DEFAULT_PEAK_RELATIVE, allItems, DEFAULT_ITEMS_PER_ROW, MonitorItem.entries, true)
+    val defaults = MonitorSettings(DEFAULT_PEAK_RELATIVE, false, allItems, DEFAULT_ITEMS_PER_ROW, MonitorItem.entries, true)
     // ContentService otherwise batches notifications for background processes.
     private const val NOTIFY_NO_DELAY = 1 shl 15
     val uri: Uri = Uri.parse("content://dev.ryuya.galaxygamemonitor.settings/display")
@@ -62,6 +64,7 @@ internal object DisplaySettings {
         val visible = it.getInt(KEY_VISIBLE_ITEMS, allItems) or (allItems and known.inv())
         MonitorSettings(
             it.getBoolean(KEY_PEAK_RELATIVE, DEFAULT_PEAK_RELATIVE),
+            it.getBoolean(KEY_GPU_PEAK_RELATIVE, false),
             visible and allItems,
             rowCount(it.getInt(KEY_ITEMS_PER_ROW, DEFAULT_ITEMS_PER_ROW)),
             parseOrder(it.getString(KEY_ITEM_ORDER, null)),
@@ -69,9 +72,16 @@ internal object DisplaySettings {
         )
     }
 
-    fun set(context: Context, peakRelative: Boolean) {
-        if (read(context).peakRelative == peakRelative) return
-        preferences(context).edit().putBoolean(KEY_PEAK_RELATIVE, peakRelative).apply()
+    fun setCpuPeakRelative(context: Context, enabled: Boolean) =
+        updateBoolean(context, KEY_PEAK_RELATIVE, DEFAULT_PEAK_RELATIVE, enabled)
+
+    fun setGpuPeakRelative(context: Context, enabled: Boolean) =
+        updateBoolean(context, KEY_GPU_PEAK_RELATIVE, false, enabled)
+
+    private fun updateBoolean(context: Context, key: String, default: Boolean, enabled: Boolean) {
+        val preferences = preferences(context)
+        if (preferences.getBoolean(key, default) == enabled) return
+        preferences.edit().putBoolean(key, enabled).apply()
         notifyChange(context)
     }
 
@@ -86,8 +96,9 @@ internal object DisplaySettings {
 
     fun setItemsPerRow(context: Context, requested: Int) {
         val count = rowCount(requested)
-        if (read(context).itemsPerRow == count) return
-        preferences(context).edit().putInt(KEY_ITEMS_PER_ROW, count).apply()
+        val preferences = preferences(context)
+        if (rowCount(preferences.getInt(KEY_ITEMS_PER_ROW, DEFAULT_ITEMS_PER_ROW)) == count) return
+        preferences.edit().putInt(KEY_ITEMS_PER_ROW, count).apply()
         notifyChange(context)
     }
 
@@ -98,16 +109,14 @@ internal object DisplaySettings {
         notifyChange(context)
     }
 
-    fun setShowInCapture(context: Context, visible: Boolean) {
-        if (read(context).showInCapture == visible) return
-        preferences(context).edit().putBoolean(KEY_SHOW_IN_CAPTURE, visible).apply()
-        notifyChange(context)
-    }
+    fun setShowInCapture(context: Context, visible: Boolean) =
+        updateBoolean(context, KEY_SHOW_IN_CAPTURE, true, visible)
 
     fun serializeOrder(order: List<MonitorItem>): String = order.joinToString(",") { it.bit.toString() }
 
     private fun parseOrder(value: String?): List<MonitorItem> {
-        val saved = value?.split(',').orEmpty().mapNotNull { token ->
+        if (value.isNullOrEmpty()) return MonitorItem.entries
+        val saved = value.split(',').mapNotNull { token ->
             val bit = token.toIntOrNull()
             MonitorItem.entries.firstOrNull { it.bit == bit }
         }
@@ -129,6 +138,7 @@ internal object DisplaySettings {
 
     fun fromBundle(bundle: Bundle) = MonitorSettings(
         bundle.getBoolean(KEY_PEAK_RELATIVE, DEFAULT_PEAK_RELATIVE),
+        bundle.getBoolean(KEY_GPU_PEAK_RELATIVE, false),
         bundle.getInt(KEY_VISIBLE_ITEMS, allItems) and allItems,
         rowCount(bundle.getInt(KEY_ITEMS_PER_ROW, DEFAULT_ITEMS_PER_ROW)),
         parseOrder(bundle.getString(KEY_ITEM_ORDER)),
@@ -178,6 +188,7 @@ class DisplaySettingsProvider : ContentProvider() {
         val settings = DisplaySettings.read(owner)
         return Bundle().apply {
             putBoolean(DisplaySettings.KEY_PEAK_RELATIVE, settings.peakRelative)
+            putBoolean(DisplaySettings.KEY_GPU_PEAK_RELATIVE, settings.gpuPeakRelative)
             putInt(DisplaySettings.KEY_VISIBLE_ITEMS, settings.visibleItems)
             putInt(DisplaySettings.KEY_ITEMS_PER_ROW, settings.itemsPerRow)
             putString(DisplaySettings.KEY_ITEM_ORDER, DisplaySettings.serializeOrder(settings.order))
@@ -201,7 +212,9 @@ class DisplaySettingsProvider : ContentProvider() {
                 DisplaySettings.setOrder(owner, order)
             }
             changes.containsKey(DisplaySettings.KEY_PEAK_RELATIVE) ->
-                DisplaySettings.set(owner, changes.getBoolean(DisplaySettings.KEY_PEAK_RELATIVE))
+                DisplaySettings.setCpuPeakRelative(owner, changes.getBoolean(DisplaySettings.KEY_PEAK_RELATIVE))
+            changes.containsKey(DisplaySettings.KEY_GPU_PEAK_RELATIVE) ->
+                DisplaySettings.setGpuPeakRelative(owner, changes.getBoolean(DisplaySettings.KEY_GPU_PEAK_RELATIVE))
             changes.containsKey(DisplaySettings.KEY_SHOW_IN_CAPTURE) ->
                 DisplaySettings.setShowInCapture(owner, changes.getBoolean(DisplaySettings.KEY_SHOW_IN_CAPTURE))
             else -> throw IllegalArgumentException("Missing monitor setting")

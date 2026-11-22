@@ -19,6 +19,7 @@ import org.json.JSONObject
 import java.lang.ref.WeakReference
 import java.lang.reflect.Method
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 class HookEntry : XposedModule() {
     private var processName: String? = null
@@ -33,7 +34,7 @@ class HookEntry : XposedModule() {
     private val inGameSettings = InGameMonitorSettings()
     @Volatile private var retired = false
     private val loggedCpu = AtomicBoolean()
-    private val loggedGpu = AtomicBoolean()
+    private val loggedGpuMode = AtomicReference<Boolean?>()
 
     override fun onModuleLoaded(param: ModuleLoadedParam) {
         processName = param.processName
@@ -180,26 +181,28 @@ class HookEntry : XposedModule() {
 
             runCatching {
                 val settings = displaySettings.settings()
+                val showClock = overlay.supported && settings.shows(MonitorItem.GPU_CLOCK)
+                val transformed = MonitorTelemetry.update(raw, capacity, settings, showClock)
                 if (overlay.supported) {
-                    val clock = if (settings.shows(MonitorItem.GPU_CLOCK)) capacity.gpuClockMhz() else null
                     val battery = if (settings.shows(MonitorItem.BATTERY_TEMPERATURE) ||
                         settings.shows(MonitorItem.BATTERY_LEVEL)
                     ) capacity.battery() else null
                     val gameRamKiB = if (settings.shows(MonitorItem.GAME_RAM) && overlay.monitorVisible) {
                         gameRam.readKiB()
                     } else null
-                    overlay.submit(MonitorOverlay.Reading(settings, clock, battery, gameRamKiB))
+                    overlay.submit(MonitorOverlay.Reading(settings, transformed.clockMhz, battery, gameRamKiB))
                 }
-                val transformed = MonitorTelemetry.update(raw, capacity, settings.peakRelative)
-                    ?: return@runCatching raw
                 if (transformed.cpu != null && loggedCpu.compareAndSet(false, true)) {
                     val sample = transformed.cpu
                     val mode = if (sample.peakRelative) "peak-relative" else "busy time"
                     Log.i(TAG, "CPU usage active (${sample.source}, $mode): ${sample.percentage}%")
                 }
-                if (transformed.gpu != null && loggedGpu.compareAndSet(false, true)) {
-                    val sample = transformed.gpu
-                    Log.i(TAG, "GPU driver usage active (${sample.source}): ${sample.percentage}%")
+                transformed.gpu?.let { sample ->
+                    val previous = loggedGpuMode.get()
+                    if (previous != sample.peakRelative && loggedGpuMode.compareAndSet(previous, sample.peakRelative)) {
+                        val mode = if (sample.peakRelative) "peak-relative" else "busy time"
+                        Log.i(TAG, "GPU driver usage active (${sample.source}, $mode): ${sample.percentage}%")
+                    }
                 }
                 transformed.output
             }.getOrDefault(raw)
@@ -218,7 +221,12 @@ class HookEntry : XposedModule() {
 }
 
 internal object MonitorTelemetry {
-    data class Result(val output: String, val cpu: DeviceCapacity.CpuSample?, val gpu: GpuUsage.Sample?)
+    data class Result(
+        val output: String,
+        val cpu: DeviceCapacity.CpuSample?,
+        val gpu: GpuUsage.Sample?,
+        val clockMhz: Int?,
+    )
 
     private const val GPU_LOAD = "gpu_load"
     private const val CPU_LOAD = "cpu_load_total"
@@ -250,21 +258,29 @@ internal object MonitorTelemetry {
     fun update(
         raw: String,
         capacity: DeviceCapacity,
-        peakRelativeCpu: Boolean,
-    ): Result? {
+        settings: MonitorSettings,
+        showClock: Boolean,
+    ): Result {
         val reply = JSONObject(raw)
-        if (!reply.optBoolean("successful")) return null
+        val successful = reply.optBoolean("successful")
+        val gpu = capacity.gpuReading(
+            includeUsage = successful && reply.hasSamples(GPU_LOAD),
+            peakRelative = settings.gpuPeakRelative,
+            includeClock = showClock,
+        )
+        val cpu = if (successful && reply.hasSamples(CPU_LOAD)) capacity.cpuUsage(settings.peakRelative) else null
+        val cpuChanged = cpu != null && reply.replaceSample(CPU_LOAD, kotlin.math.round(cpu.percentage))
+        val gpuChanged = gpu.usage?.let { reply.replaceSample(GPU_LOAD, it.percentage) } == true
+        return Result(if (cpuChanged || gpuChanged) reply.toString() else raw, cpu, gpu.usage, gpu.clockMhz)
+    }
 
-        val cpu = if (reply.hasSamples(CPU_LOAD)) capacity.cpuUsage(peakRelativeCpu) else null
-        val gpu = if (reply.hasSamples(GPU_LOAD)) capacity.gpuUsage() else null
-        if (cpu == null && gpu == null) return null
-
-        if (cpu != null) reply.put(CPU_LOAD, JSONArray().put(kotlin.math.round(cpu.percentage)))
-        if (gpu != null) {
-            // Each driver reports one reading for its sampling window.
-            reply.put(GPU_LOAD, JSONArray().put(gpu.percentage))
-        }
-        return Result(reply.toString(), cpu, gpu)
+    private fun JSONObject.replaceSample(key: String, value: Double): Boolean {
+        val old = optJSONArray(key)
+        // If the existing reply already has the same single numeric sample, keep the original JSON.
+        val sample = (old?.opt(0) as? Number)?.toDouble()
+        if (old?.length() == 1 && sample == value) return false
+        put(key, JSONArray().put(value))
+        return true
     }
 
     private fun JSONObject.hasSamples(key: String): Boolean = (optJSONArray(key)?.length() ?: 0) > 0

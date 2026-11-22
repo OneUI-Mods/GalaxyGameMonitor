@@ -24,6 +24,9 @@
     <string name="peak_relative_toggle">CPUを最大クロック基準で表示</string>
     <string name="mode_peak_relative">CPU負荷を最大クロック基準で表示します。</string>
     <string name="mode_kernel_usage">CPUが稼働していた時間の割合を表示します。</string>
+    <string name="gpu_peak_relative_toggle">GPUを最大クロック換算で表示</string>
+    <string name="gpu_mode_peak_relative" formatted="false">現在のクロックを考慮した目安を表示します。換算に必要な計測値が不足する場合は、ドライバーの稼働率を表示します。</string>
+    <string name="gpu_mode_driver_usage" formatted="false">GPU %はドライバーが計測した稼働時間の割合です。</string>
     <string name="module_setup">Vectorでゲームブースターにモジュールを適用してください。切り替えはモニターの次の更新で反映されます。</string>
     <string name="reload_game_booster">ゲームブースターを再読み込み</string>
     <string name="reload_running">ゲームブースターを再読み込み中…</string>

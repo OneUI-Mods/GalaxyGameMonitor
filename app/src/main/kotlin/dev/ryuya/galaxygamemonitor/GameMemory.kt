@@ -66,9 +66,13 @@ internal class GameMemory(private val context: Context) {
         if (now < nextMemorySampleMs) return
         nextMemorySampleMs = now + MEMORY_SAMPLE_MS
 
-        val pids = activityManager.runningAppProcesses.orEmpty()
-            .filter { it.uid == uid && it.pkgList?.contains(packageName) == true }
-            .map { it.pid }.distinct().toIntArray()
+        val foregroundPids = mutableSetOf<Int>()
+        for (process in activityManager.runningAppProcesses.orEmpty()) {
+            if (process.uid == uid && process.pkgList?.contains(packageName) == true) {
+                foregroundPids.add(process.pid)
+            }
+        }
+        val pids = foregroundPids.toIntArray()
         if (pids.isEmpty()) {
             residentPssKiB = null
             return

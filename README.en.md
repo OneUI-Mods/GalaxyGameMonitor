@@ -6,6 +6,8 @@ Show CPU and GPU usage measured by the kernel in Game Booster’s system monitor
 
 On devices that expose the current GPU clock, the overlay shows it in MHz next to GPU usage.
 
+Turn on **Show GPU relative to peak clock** to show an estimate in the `GPU %` field based on driver utilization multiplied by operating frequency divided by the GPU’s peak frequency. It uses per-frequency busy times on supported Adreno devices and the sampled clock elsewhere. When conversion is unavailable, the overlay shows the standard `GPU %`.
+
 Use **System monitor items** to show or hide FPS, CPU usage, GPU usage, GPU clock, system RAM usage, game RAM, battery level, and battery temperature individually. Battery temperature is shown in degrees Celsius to one decimal place.
 
 Game RAM shows the resident proportional set size (PSS) of the foreground game’s processes in GiB. It uses Android’s detailed memory measurement, including graphics memory attributed to the game. Grant root access to Galaxy Game Monitor to enable this metric. It shows “—” when unavailable.
