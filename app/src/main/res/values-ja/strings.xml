@@ -1,6 +1,10 @@
 <resources>
     <string name="app_name">Galaxy Game Monitor</string>
     <string name="monitor_items_heading">システムモニターの表示項目</string>
+    <string name="monitor_settings_action">表示項目</string>
+    <string name="monitor_items_per_row">1行あたりの項目数</string>
+    <string name="monitor_items_per_row_value">1行あたり %1$d 項目</string>
+    <string name="monitor_settings_unavailable">表示設定を開けませんでした。Galaxy Game Monitorを開いてからやり直してください。</string>
     <string name="monitor_fps">フレームレート（FPS）</string>
     <string name="monitor_cpu">CPU使用率</string>
     <string name="monitor_gpu">GPU使用率</string>

@@ -1,5 +1,6 @@
 package dev.ryuya.galaxygamemonitor
 
+import android.app.Activity
 import android.content.ComponentName
 import android.content.Context
 import android.os.IBinder
@@ -12,6 +13,7 @@ import io.github.libxposed.api.XposedModuleInterface.ModuleLoadedParam
 import io.github.libxposed.api.XposedModuleInterface.PackageReadyParam
 import org.json.JSONArray
 import org.json.JSONObject
+import java.lang.ref.WeakReference
 import java.lang.reflect.Method
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -22,6 +24,7 @@ class HookEntry : XposedModule() {
     private var hostContext: Context? = null
     private var connectedProxy: Class<*>? = null
     private var monitorOverlay: MonitorOverlay? = null
+    private var monitorSettingsEntry: GameBoosterMonitorSettings? = null
     @Volatile private var retired = false
     private val loggedCpu = AtomicBoolean()
     private val loggedGpu = AtomicBoolean()
@@ -35,15 +38,17 @@ class HookEntry : XposedModule() {
         if (!param.isFirstPackage || param.packageName != booster || processName != booster) return
 
         installConnectionHook(param.classLoader)
+        installSettingsHook(param.classLoader)
     }
 
     @Synchronized
     override fun onHotReloading(param: HotReloadingParam): Boolean {
         val loader = hostLoader ?: return false
-        param.setSavedInstanceState(arrayOf(loader, hostContext, connectedProxy))
+        param.setSavedInstanceState(arrayOf(loader, hostContext, connectedProxy, monitorSettingsEntry?.activity))
         retired = true
         attached.values.forEach(GameBoosterDisplaySettings::close)
         monitorOverlay?.close()
+        monitorSettingsEntry?.close()
         return true
     }
 
@@ -53,6 +58,9 @@ class HookEntry : XposedModule() {
         val loader = state.getOrNull(0) as? ClassLoader ?: return
         if (param.processName != DisplaySettings.GAME_BOOSTER) return
         if (!installConnectionHook(loader)) return
+        installSettingsHook(loader)
+        val openSettings = (state.getOrNull(3) as? WeakReference<*>)?.get() as? Activity
+        if (openSettings != null) monitorSettingsEntry?.attach(openSettings)
         val context = state.getOrNull(1) as? Context
         val proxy = state.getOrNull(2) as? Class<*>
         if (context != null && proxy != null) {
@@ -63,6 +71,20 @@ class HookEntry : XposedModule() {
         }
         param.oldHookHandles.forEach { it.unhook() }
         Log.i(TAG, "ONEUI_MODS_HOT_RELOAD package=${BuildConfig.APPLICATION_ID} version=${BuildConfig.VERSION_CODE} pid=${android.os.Process.myPid()}")
+    }
+
+    private fun installSettingsHook(loader: ClassLoader) {
+        runCatching {
+            val activity = loader.loadClass("${DisplaySettings.GAME_BOOSTER}.setting.ui.SettingGameBoosterMainActivity")
+            val toolbar = loader.loadClass("androidx.appcompat.widget.Toolbar")
+            val entry = GameBoosterMonitorSettings(toolbar)
+            hook(activity.getDeclaredMethod("onResume")).setId("monitor-settings-menu").intercept { chain ->
+                val result = chain.proceed()
+                (chain.thisObject as? Activity)?.let(entry::attach)
+                result
+            }
+            monitorSettingsEntry = entry
+        }.onFailure { Log.w(TAG, "Game Booster settings hook unavailable", it) }
     }
 
     private fun installConnectionHook(loader: ClassLoader): Boolean {

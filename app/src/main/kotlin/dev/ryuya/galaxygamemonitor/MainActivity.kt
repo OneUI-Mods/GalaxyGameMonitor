@@ -9,9 +9,17 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.materialswitch.MaterialSwitch
+import com.google.android.material.slider.Slider
 import com.google.android.material.textview.MaterialTextView
 
 class MainActivity : AppCompatActivity() {
+    private var refreshSettings: (() -> Unit)? = null
+
+    override fun onResume() {
+        super.onResume()
+        refreshSettings?.invoke()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -24,13 +32,30 @@ class MainActivity : AppCompatActivity() {
         }
 
         val settings = DisplaySettings.read(this)
+        var refreshing = false
+        val perRowLabel = findViewById<MaterialTextView>(R.id.items_per_row_value)
+        val perRow = findViewById<Slider>(R.id.items_per_row)
+        perRow.valueFrom = 1f
+        perRow.valueTo = MonitorItem.entries.size.toFloat()
+        perRow.stepSize = 1f
+        perRow.value = settings.itemsPerRow.toFloat()
+        perRowLabel.text = getString(R.string.monitor_items_per_row_value, settings.itemsPerRow)
+        perRow.addOnChangeListener { _, value, fromUser ->
+            val count = value.toInt()
+            perRowLabel.text = getString(R.string.monitor_items_per_row_value, count)
+            if (fromUser) DisplaySettings.setItemsPerRow(this, count)
+        }
+
         val items = findViewById<LinearLayout>(R.id.monitor_items)
-        for (item in MonitorItem.entries) {
+        val itemSwitches = MonitorItem.entries.associateWith { item ->
             val itemSwitch = layoutInflater.inflate(R.layout.monitor_item_switch, items, false) as MaterialSwitch
             itemSwitch.setText(item.label)
             itemSwitch.isChecked = settings.shows(item)
-            itemSwitch.setOnCheckedChangeListener { _, visible -> DisplaySettings.setVisible(this, item, visible) }
+            itemSwitch.setOnCheckedChangeListener { _, visible ->
+                if (!refreshing) DisplaySettings.setVisible(this, item, visible)
+            }
             items.addView(itemSwitch)
+            itemSwitch
         }
 
         val mode = findViewById<MaterialTextView>(R.id.mode)
@@ -41,8 +66,16 @@ class MainActivity : AppCompatActivity() {
         }
         showMode(toggle.isChecked)
         toggle.setOnCheckedChangeListener { _, peakRelative ->
-            DisplaySettings.set(this, peakRelative)
+            if (!refreshing) DisplaySettings.set(this, peakRelative)
             showMode(peakRelative)
+        }
+        refreshSettings = {
+            val latest = DisplaySettings.read(this)
+            refreshing = true
+            perRow.value = latest.itemsPerRow.toFloat()
+            toggle.isChecked = latest.peakRelative
+            for ((item, itemSwitch) in itemSwitches) itemSwitch.isChecked = latest.shows(item)
+            refreshing = false
         }
 
         val reload = findViewById<MaterialButton>(R.id.reload_game_booster)

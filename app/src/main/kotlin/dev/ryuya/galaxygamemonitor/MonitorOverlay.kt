@@ -12,23 +12,25 @@ import android.view.ViewGroup
 import android.view.inspector.WindowInspector
 import android.widget.LinearLayout
 import android.widget.TextView
-import java.lang.ref.WeakReference
 import java.text.NumberFormat
 import kotlin.math.ceil
+import kotlin.math.roundToInt
 
 internal class MonitorOverlay(context: Context) {
     data class Reading(val settings: MonitorSettings, val clockMhz: Int?, val batteryTenthsC: Int?)
 
     private val rootId = resourceId(context, "sgl_performance_monitor_bg")
+    private val itemsId = resourceId(context, "cl_performance_monitor_items")
     private val titleId = resourceId(context, "tv_title")
     private val valueId = resourceId(context, "tv_value")
-    private val groups = listOf(
-        StockGroup(MonitorItem.FPS, resourceId(context, "cl_item_fps")),
-        StockGroup(MonitorItem.CPU, resourceId(context, "cl_item_cpu")),
-        StockGroup(MonitorItem.GPU, resourceId(context, "cl_item_gpu"), MonitorItem.GPU_CLOCK, "MHz"),
-        StockGroup(MonitorItem.RAM, resourceId(context, "cl_item_ram"), MonitorItem.BATTERY_TEMPERATURE, "BAT °C"),
+    private val groupIds = mapOf(
+        MonitorItem.FPS to resourceId(context, "cl_item_fps"),
+        MonitorItem.CPU to resourceId(context, "cl_item_cpu"),
+        MonitorItem.GPU to resourceId(context, "cl_item_gpu"),
+        MonitorItem.RAM to resourceId(context, "cl_item_ram"),
     )
-    val supported = rootId != 0 && titleId != 0 && valueId != 0 && groups.all { it.id != 0 }
+    val supported = rootId != 0 && itemsId != 0 && titleId != 0 && valueId != 0 &&
+        groupIds.values.all { it != 0 }
 
     private val main = Handler(Looper.getMainLooper())
     @Volatile private var closed = false
@@ -38,6 +40,14 @@ internal class MonitorOverlay(context: Context) {
         minimumFractionDigits = 1
         maximumFractionDigits = 1
         isGroupingUsed = false
+    }
+    private val detachListener = object : View.OnAttachStateChangeListener {
+        override fun onViewAttachedToWindow(view: View) = Unit
+        override fun onViewDetachedFromWindow(view: View) {
+            main.post {
+                if (binding?.root === view && !view.isAttachedToWindow) restoreSafely()
+            }
+        }
     }
 
     fun submit(reading: Reading) {
@@ -59,90 +69,84 @@ internal class MonitorOverlay(context: Context) {
     }
 
     private fun render(reading: Reading) {
-        val current = binding
-        if (current != null && current.root.get()?.isAttachedToWindow != true) restore()
-        if (reading == lastReading) return
+        if (binding?.root?.isAttachedToWindow == false) restore()
+        val previous = lastReading
+        if (reading == previous) return
         val active = binding ?: bind() ?: return
-
-        var anyVisible = false
-        for (slot in active.slots) {
-            val group = slot.group.get() ?: continue
-            val stock = slot.stock.get() ?: continue
-            val stockVisible = reading.settings.shows(slot.spec.item) && slot.stockVisibility != View.GONE
-            stock.visibility = if (stockVisible) slot.stockVisibility else View.GONE
-
-            val value = slot.extra?.value?.get()
-            val showExtra = value != null && slot.spec.extraItem?.let(reading.settings::shows) == true
-            if (value != null) {
-                val nextText = when (slot.spec.extraItem) {
-                    MonitorItem.GPU_CLOCK -> reading.clockMhz?.toString()
-                    MonitorItem.BATTERY_TEMPERATURE -> reading.batteryTenthsC?.let { temperatures.format(it / 10.0) }
-                    else -> null
-                } ?: "—"
-                if (showExtra && !value.text.contentEquals(nextText)) value.text = nextText
-                (value.parent as? View)?.visibility = if (showExtra) View.VISIBLE else View.GONE
-            }
-
-            val showGroup = stockVisible || showExtra
-            group.visibility = if (showGroup) slot.groupVisibility else View.GONE
-            anyVisible = anyVisible || showGroup && slot.groupVisibility == View.VISIBLE
-        }
-        active.root.get()?.visibility = if (anyVisible) active.rootVisibility else View.GONE
+        if (previous?.settings?.visibleItems != reading.settings.visibleItems ||
+            previous.settings.itemsPerRow != reading.settings.itemsPerRow
+        ) arrangeRows(active, reading.settings)
+        setReading(active.clock.value, reading.clockMhz?.toString())
+        setReading(active.battery.value, reading.batteryTenthsC?.let { temperatures.format(it / 10.0) })
         lastReading = reading
+    }
+
+    private fun setReading(view: TextView, reading: String?) {
+        val text = reading ?: "—"
+        if (!view.text.contentEquals(text)) view.text = text
+    }
+
+    private fun arrangeRows(active: Binding, settings: MonitorSettings) {
+        clearRows(active.grid)
+        val rows = MonitorItem.entries.filter(settings::shows).chunked(settings.itemsPerRow)
+        val gap = (3 * active.grid.resources.displayMetrics.density).roundToInt()
+        for ((index, items) in rows.withIndex()) {
+            val row = LinearLayout(active.grid.context).apply { orientation = LinearLayout.HORIZONTAL }
+            for (item in items) row.addView(active.columns.getValue(item), LinearLayout.LayoutParams(WRAP, WRAP))
+            active.grid.addView(row, LinearLayout.LayoutParams(WRAP, WRAP).apply {
+                if (index != 0) topMargin = gap
+            })
+        }
+        active.root.visibility = if (rows.isEmpty()) View.GONE else active.rootVisibility
     }
 
     private fun bind(): Binding? {
         val root = WindowInspector.getGlobalWindowViews().firstNotNullOfOrNull { it.findViewById<View>(rootId) }
             ?: return null
-        val slots = groups.map { spec ->
-            val group = root.findViewById<ViewGroup>(spec.id) ?: return null
-            val stock = group.getChildAt(0) ?: return null
-            Slot(spec, WeakReference(group), WeakReference(stock), group.visibility, stock.visibility)
+        val container = root.findViewById<ViewGroup>(itemsId) ?: return null
+        if (container.childCount != groupIds.size) return null
+
+        val stockColumns = groupIds.map { (item, id) ->
+            val column = container.findViewById<ViewGroup>(id) ?: return null
+            if (column.parent !== container) return null
+            StockColumn(item, column, column.layoutParams, container.indexOfChild(column))
+        }.sortedBy(StockColumn::index)
+        val template = stockColumns.first { it.item == MonitorItem.GPU }.view.getChildAt(0) ?: return null
+        val clock = extraColumn(template, "MHz") ?: return null
+        val battery = extraColumn(template, "BAT °C") ?: return null
+        val columns = stockColumns.associate { it.item to it.view }.toMutableMap().apply {
+            put(MonitorItem.GPU_CLOCK, clock.view)
+            put(MonitorItem.BATTERY_TEMPERATURE, battery.view)
         }
-        val active = Binding(WeakReference(root), root.visibility, slots)
+        val grid = LinearLayout(container.context).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+        }
+        val active = Binding(root, root.visibility, container, grid, stockColumns, columns, clock, battery)
         binding = active
-        for (slot in slots) {
-            val title = slot.spec.extraTitle ?: continue
-            val group = slot.group.get() ?: continue
-            val stock = slot.stock.get() ?: continue
-            slot.extra = addColumn(group, stock, title)
-        }
-        Log.i(TAG, "System monitor item controls attached")
+        root.addOnAttachStateChangeListener(detachListener)
+        for (column in stockColumns) container.removeView(column.view)
+        container.addView(grid, ViewGroup.LayoutParams(WRAP, WRAP))
+        Log.i(TAG, "System monitor row layout attached")
         return active
     }
 
-    private fun addColumn(group: ViewGroup, stock: View, label: String): ExtraColumn? {
-        if (group.childCount != 1) return null
-        val stockTitle = stock.findViewById<TextView>(titleId) ?: return null
-        val stockValue = stock.findViewById<TextView>(valueId) ?: return null
-        val stockParams = stock.layoutParams ?: return null
-
-        val row = LinearLayout(group.context).apply { orientation = LinearLayout.HORIZONTAL }
+    private fun extraColumn(template: View, label: String): ExtraColumn? {
+        val stockTitle = template.findViewById<TextView>(titleId) ?: return null
+        val stockValue = template.findViewById<TextView>(valueId) ?: return null
         val title = matchingTextView(stockTitle).apply { text = label }
         val value = matchingTextView(stockValue)
         val digitWidth = ('0'..'9').maxOf { value.paint.measureText(it.toString()) }
         value.minWidth = ceil(digitWidth * 4).toInt() + value.paddingLeft + value.paddingRight + 2
-        val column = LinearLayout(group.context).apply {
+        val column = LinearLayout(template.context).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
-            minimumWidth = stockParams.width.coerceAtLeast(0)
-            setPaddingRelative(stock.paddingStart, 0, stock.paddingEnd, 0)
+            minimumWidth = template.layoutParams.width.coerceAtLeast(0)
+            setPaddingRelative(template.paddingStart, 0, template.paddingEnd, 0)
             addView(title)
             addView(value)
         }
-
-        group.removeView(stock)
-        try {
-            row.addView(stock, LinearLayout.LayoutParams(stockParams.width, stockParams.height))
-            row.addView(column, LinearLayout.LayoutParams(WRAP, WRAP))
-            group.addView(row, ViewGroup.LayoutParams(WRAP, WRAP))
-        } catch (error: RuntimeException) {
-            group.removeView(row)
-            row.removeView(stock)
-            group.addView(stock, stockParams)
-            throw error
-        }
-        return ExtraColumn(WeakReference(row), WeakReference(value), stockParams)
+        return ExtraColumn(column, value)
     }
 
     private fun matchingTextView(template: TextView) = TextView(template.context).apply {
@@ -156,52 +160,46 @@ internal class MonitorOverlay(context: Context) {
         setPaddingRelative(template.paddingStart, template.paddingTop, template.paddingEnd, template.paddingBottom)
     }
 
+    private fun clearRows(grid: LinearLayout) {
+        for (index in 0 until grid.childCount) (grid.getChildAt(index) as LinearLayout).removeAllViews()
+        grid.removeAllViews()
+    }
+
     private fun restore() {
         val previous = binding ?: return
         binding = null
         lastReading = null
-        for (slot in previous.slots) {
-            val group = slot.group.get() ?: continue
-            val stock = slot.stock.get() ?: continue
-            val extra = slot.extra
-            val row = extra?.row?.get()
-            if (row != null && row.parent === group && stock.parent === row) {
-                group.removeView(row)
-                row.removeView(stock)
-                group.addView(stock, extra.stockParams)
-            }
-            stock.visibility = slot.stockVisibility
-            group.visibility = slot.groupVisibility
+        previous.root.removeOnAttachStateChangeListener(detachListener)
+        clearRows(previous.grid)
+        previous.container.removeView(previous.grid)
+        for (column in previous.stock) {
+            if (column.view.parent == null) previous.container.addView(column.view, column.index, column.params)
         }
-        previous.root.get()?.visibility = previous.rootVisibility
+        previous.root.visibility = previous.rootVisibility
     }
 
     private fun restoreSafely() {
         runCatching { restore() }.onFailure { Log.w(TAG, "System monitor cleanup failed", it) }
     }
 
-    private data class StockGroup(
+    private data class StockColumn(
         val item: MonitorItem,
-        val id: Int,
-        val extraItem: MonitorItem? = null,
-        val extraTitle: String? = null,
+        val view: ViewGroup,
+        val params: ViewGroup.LayoutParams,
+        val index: Int,
     )
 
-    private data class Slot(
-        val spec: StockGroup,
-        val group: WeakReference<ViewGroup>,
-        val stock: WeakReference<View>,
-        val groupVisibility: Int,
-        val stockVisibility: Int,
-        var extra: ExtraColumn? = null,
-    )
+    private data class ExtraColumn(val view: LinearLayout, val value: TextView)
 
-    private data class Binding(val root: WeakReference<View>, val rootVisibility: Int, val slots: List<Slot>)
-
-    private data class ExtraColumn(
-        val row: WeakReference<LinearLayout>,
-        val value: WeakReference<TextView>,
-        val stockParams: ViewGroup.LayoutParams,
+    private data class Binding(
+        val root: View,
+        val rootVisibility: Int,
+        val container: ViewGroup,
+        val grid: LinearLayout,
+        val stock: List<StockColumn>,
+        val columns: Map<MonitorItem, View>,
+        val clock: ExtraColumn,
+        val battery: ExtraColumn,
     )
 
     private companion object {
