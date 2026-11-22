@@ -8,7 +8,7 @@ On devices that expose the current GPU clock, the overlay shows it in MHz next t
 
 Use **System monitor items** to show or hide FPS, CPU usage, GPU usage, GPU clock, system RAM usage, game RAM, battery level, and battery temperature individually. Battery temperature is shown in degrees Celsius to one decimal place.
 
-Game RAM is the resident proportional set size (PSS) of the foreground game's processes in GiB, including graphics memory that Android attributes to them.
+Game RAM shows the resident proportional set size (PSS) of the foreground game’s processes in GiB. It uses Android’s detailed memory measurement, including graphics memory attributed to the game. Grant root access to Galaxy Game Monitor to enable this metric. It shows “—” when unavailable.
 
 Choose 1 to 8 items per row. The default is 4. Use **Reorder items** to move metrics up or down. During a game, open **Game Booster settings → System monitor** in the side panel to edit the same settings. In the full Game Booster settings screen, tap **Monitor** at the top.
 

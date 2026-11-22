@@ -37,6 +37,9 @@ internal object DisplaySettings {
     const val GAME_BOOSTER = "com.samsung.android.game.gametools"
     const val READ = "get_display_settings"
     const val UPDATE = "update_display_settings"
+    const val READ_GAME_MEMORY = "read_game_memory"
+    const val KEY_GAME_PIDS = "game_pids"
+    const val KEY_GAME_RESIDENT_PSS = "game_resident_pss"
     const val KEY_PEAK_RELATIVE = "peak_relative"
     const val KEY_VISIBLE_ITEMS = "visible_items"
     const val KEY_ITEMS_PER_ROW = "items_per_row"
@@ -118,6 +121,12 @@ internal object DisplaySettings {
         checkNotNull(context.contentResolver.call(uri, UPDATE, null, changes))
     }
 
+    fun readGameMemory(context: Context, pids: IntArray): Long? {
+        val args = Bundle().apply { putIntArray(KEY_GAME_PIDS, pids) }
+        return context.contentResolver.call(uri, READ_GAME_MEMORY, null, args)
+            ?.getLong(KEY_GAME_RESIDENT_PSS)?.takeIf { it > 0L }
+    }
+
     fun fromBundle(bundle: Bundle) = MonitorSettings(
         bundle.getBoolean(KEY_PEAK_RELATIVE, DEFAULT_PEAK_RELATIVE),
         bundle.getInt(KEY_VISIBLE_ITEMS, allItems) and allItems,
@@ -148,6 +157,13 @@ class DisplaySettingsProvider : ContentProvider() {
         when (method) {
             DisplaySettings.READ -> Unit
             DisplaySettings.UPDATE -> update(owner, requireNotNull(extras))
+            DisplaySettings.READ_GAME_MEMORY -> return Bundle().apply {
+                val pids = requireNotNull(extras?.getIntArray(DisplaySettings.KEY_GAME_PIDS)).distinct().toIntArray()
+                for (group in pids.asList().chunked(DetailedGameMemory.MAX_PROCESSES)) {
+                    val sample = DetailedGameMemory.readKiB(group.toIntArray()) ?: return Bundle()
+                    putLong(DisplaySettings.KEY_GAME_RESIDENT_PSS, getLong(DisplaySettings.KEY_GAME_RESIDENT_PSS) + sample)
+                }
+            }
             else -> throw IllegalArgumentException("Unknown monitor settings method")
         }
         val settings = DisplaySettings.read(owner)

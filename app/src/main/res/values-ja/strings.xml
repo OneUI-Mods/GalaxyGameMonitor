@@ -13,6 +13,7 @@
     <string name="monitor_gpu_clock">GPUクロック</string>
     <string name="monitor_ram">メモリ使用率</string>
     <string name="monitor_game_ram">ゲームのメモリ使用量（PSS）</string>
+    <string name="monitor_game_ram_root">ゲームのメモリ使用量を詳しく計測するには、Galaxy Game MonitorにRoot権限を許可してください。</string>
     <string name="monitor_battery_level">バッテリー残量</string>
     <string name="monitor_battery_temperature">バッテリー温度</string>
     <string name="monitor_order">表示項目の並び替え</string>

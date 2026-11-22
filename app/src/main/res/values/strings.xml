@@ -13,6 +13,7 @@
     <string name="monitor_gpu_clock">GPU clock</string>
     <string name="monitor_ram">RAM usage</string>
     <string name="monitor_game_ram">Game RAM (PSS)</string>
+    <string name="monitor_game_ram_root">Detailed game memory requires root permission for Galaxy Game Monitor.</string>
     <string name="monitor_battery_level">Battery level</string>
     <string name="monitor_battery_temperature">Battery temperature</string>
     <string name="monitor_order">Reorder items</string>

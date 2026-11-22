@@ -39,6 +39,8 @@ internal class MonitorOverlay(context: Context, private val capture: MonitorCapt
 
     private val main = Handler(Looper.getMainLooper())
     @Volatile private var closed = false
+    @Volatile var monitorVisible = false
+        private set
     private var binding: Binding? = null
     private var lastReading: Reading? = null
     private val temperatures = NumberFormat.getNumberInstance(context.resources.configuration.locales[0]).apply {
@@ -73,6 +75,7 @@ internal class MonitorOverlay(context: Context, private val capture: MonitorCapt
 
     fun close() {
         closed = true
+        monitorVisible = false
         main.removeCallbacksAndMessages(null)
         if (Looper.myLooper() == Looper.getMainLooper()) restoreSafely()
         else main.post { restoreSafely() }
@@ -82,6 +85,7 @@ internal class MonitorOverlay(context: Context, private val capture: MonitorCapt
         if (binding?.root?.isAttachedToWindow == false) restore()
         val active = binding ?: bind() ?: return
         capture.update(active.root, reading.settings.showInCapture)
+        monitorVisible = active.root.isShown
         val previous = lastReading
         if (reading == previous) return
         if (previous?.settings?.visibleItems != reading.settings.visibleItems ||
@@ -186,6 +190,7 @@ internal class MonitorOverlay(context: Context, private val capture: MonitorCapt
     private fun restore() {
         val previous = binding ?: return
         binding = null
+        monitorVisible = false
         lastReading = null
         previous.root.removeOnAttachStateChangeListener(detachListener)
         clearRows(previous.grid)

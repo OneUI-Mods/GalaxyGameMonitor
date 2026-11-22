@@ -73,16 +73,13 @@ internal class GameMemory(private val context: Context) {
             residentPssKiB = null
             return
         }
-        // totalPss also includes swapped-out pages. Display the resident share of RAM.
-        val memory = activityManager.getProcessMemoryInfo(pids)
-        residentPssKiB = memory
-            .sumOf { it.dalvikPss.toLong() + it.nativePss + it.otherPss }
-            .takeIf { it > 0 }
-        if (residentPssKiB != null && !loggedSample) {
+        val measured = DisplaySettings.readGameMemory(context, pids)
+        residentPssKiB = measured
+        if (measured != null && !loggedSample) {
             loggedSample = true
-            val graphicsKiB = memory.sumOf { it.getMemoryStat("summary.graphics")?.toLongOrNull() ?: 0L }
-            Log.i(TAG, "Game RAM: ${residentPssKiB} KiB resident PSS across ${pids.size} process(es), graphics summary $graphicsKiB KiB")
+            Log.i(TAG, "Game RAM: $measured KiB detailed resident PSS across ${pids.size} process(es)")
         }
+        if (measured == null) nextMemorySampleMs = now + RETRY_MS
     }
 
     @Suppress("DEPRECATION")
@@ -95,5 +92,6 @@ internal class GameMemory(private val context: Context) {
         const val TAG = "GalaxyGameMonitor"
         const val FOREGROUND_CHECK_MS = 2_000L
         const val MEMORY_SAMPLE_MS = 12_000L
+        const val RETRY_MS = 60_000L
     }
 }
