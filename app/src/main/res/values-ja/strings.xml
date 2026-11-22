@@ -1,9 +1,9 @@
 <resources>
     <string name="app_name">Galaxy Game Monitor</string>
-    <string name="summary">ゲームブースターのCPU・GPU表示を、ハードウェアの最大性能に対する割合に変えます。</string>
-    <string name="peak_relative_toggle">最大クロック基準で表示</string>
-    <string name="mode_peak_relative">ゲームブースターで、CPU・GPUの負荷を最大クロック基準に換算します。</string>
-    <string name="mode_stock">ゲームブースター純正のCPU・GPU使用率を表示します。</string>
+    <string name="summary">ゲームブースターのGPU使用率にQualcommドライバーの計測値を使います。</string>
+    <string name="peak_relative_toggle">CPUを最大クロック基準で表示</string>
+    <string name="mode_peak_relative">CPU負荷を最大クロック基準で表示します。</string>
+    <string name="mode_stock">ゲームブースター純正のCPU使用率を表示します。</string>
     <string name="module_setup">Vectorでゲームブースターにモジュールを適用してください。切り替えはモニターの次の更新で反映されます。</string>
     <string name="reload_game_booster">ゲームブースターを再読み込み</string>
     <string name="reload_running">ゲームブースターを再読み込み中…</string>

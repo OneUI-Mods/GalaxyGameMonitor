@@ -112,31 +112,22 @@ class HookEntry : XposedModule() {
         hook(method).setId("gos-monitor-request").intercept { chain ->
             val arguments = chain.args
             val input = arguments.getOrNull(1) as? String
-            if (arguments.firstOrNull() != PERF_REQUEST || input == null ||
+            if (retired || arguments.firstOrNull() != PERF_REQUEST || input == null ||
                 users?.isUserUnlocked != true
             ) return@intercept chain.proceed()
 
-            if (!displaySettings.isPeakRelative()) return@intercept chain.proceed()
-
-            val request = runCatching { MonitorTelemetry.readMonitorRequest(input) }.getOrNull()
-                ?: return@intercept chain.proceed()
-            val gpuPeak = capacity.gpuPeakHz
-            val addGpuClock = gpuPeak != null && MonitorTelemetry.addGpuClock(request)
-            val raw = if (addGpuClock) {
-                chain.proceed(arrayOf(PERF_REQUEST, request.toString()))
-            } else {
-                chain.proceed()
-            }
-            if (raw !is String || !displaySettings.isPeakRelative()) return@intercept raw
+            val isMonitorRequest = runCatching { MonitorTelemetry.isMonitorRequest(input) }.getOrDefault(false)
+            val raw = chain.proceed()
+            if (!isMonitorRequest || raw !is String || retired) return@intercept raw
 
             runCatching {
-                val transformed = MonitorTelemetry.normalize(raw, capacity, gpuPeak, addGpuClock)
+                val transformed = MonitorTelemetry.update(raw, capacity, displaySettings.isPeakRelative())
                     ?: return@runCatching raw
                 if (transformed.cpu != null && loggedCpu.compareAndSet(false, true)) {
                     Log.i(TAG, "CPU peak-relative utilization active")
                 }
                 if (transformed.gpu != null && loggedGpu.compareAndSet(false, true)) {
-                    Log.i(TAG, "GPU peak-relative utilization active")
+                    Log.i(TAG, "Qualcomm KGSL GPU usage active: ${transformed.gpu}%")
                 }
                 transformed.output
             }.getOrDefault(raw)
@@ -158,63 +149,38 @@ internal object MonitorTelemetry {
     data class Result(val output: String, val cpu: Double?, val gpu: Double?)
 
     private const val GPU_LOAD = "gpu_load"
-    private const val GPU_CLOCK = "gpu_f"
     private const val CPU_LOAD = "cpu_load_total"
 
-    fun readMonitorRequest(input: String): JSONObject? {
+    fun isMonitorRequest(input: String): Boolean {
         val request = JSONObject(input)
         if (request.optInt("session") != -1 || request.optLong("start") >= 0 ||
             request.optLong("end") != 0L
-        ) return null
+        ) return false
 
-        val entries = request.optJSONArray("params") ?: return null
+        val entries = request.optJSONArray("params") ?: return false
         val keys = (0 until entries.length()).mapNotNull { entries.optJSONObject(it)?.optString("param") }
-        return request.takeIf {
-            keys.containsAll(listOf(CPU_LOAD, GPU_LOAD, "temp_lrpst", "game_fps", "gpu_utilization"))
-        }
+        return keys.containsAll(listOf(CPU_LOAD, GPU_LOAD, "temp_lrpst", "game_fps", "gpu_utilization"))
     }
 
-    fun addGpuClock(request: JSONObject): Boolean {
-        val entries = request.getJSONArray("params")
-        val metrics = (0 until entries.length()).mapNotNull(entries::optJSONObject)
-        if (metrics.any { it.optString("param") == GPU_CLOCK }) return false
-        val load = metrics.first { it.optString("param") == GPU_LOAD }
-        val clock = JSONObject(load.toString()).put("param", GPU_CLOCK)
-        entries.put(clock)
-        return true
-    }
-
-    fun normalize(
+    fun update(
         raw: String,
         capacity: DeviceCapacity,
-        gpuPeak: Long?,
-        addedGpuClock: Boolean,
+        peakRelativeCpu: Boolean,
     ): Result? {
         val reply = JSONObject(raw)
         if (!reply.optBoolean("successful")) return null
 
-        // Normalize only nonempty monitor values and let the stock UI round and aggregate them.
-        val cpu = reply.optJSONArray(CPU_LOAD)?.takeIf { it.length() > 0 }?.let { capacity.cpuUsage() }
-        if (cpu != null) reply.put(CPU_LOAD, JSONArray().put(cpu.roundForDisplay()))
+        val cpu = if (peakRelativeCpu && reply.hasSamples(CPU_LOAD)) capacity.cpuUsage() else null
+        val gpu = if (reply.hasSamples(GPU_LOAD)) capacity.gpuUsage() else null
+        if (cpu == null && gpu == null) return null
 
-        val gpu = if (gpuPeak != null) gpuSamples(reply, gpuPeak) else null
-        if (gpu != null) reply.put(GPU_LOAD, gpu)
-        if (addedGpuClock) reply.remove(GPU_CLOCK)
-        if (cpu == null && gpu == null && !addedGpuClock) return null
-        return Result(reply.toString(), cpu, gpu?.optDouble(0))
-    }
-
-    private fun gpuSamples(reply: JSONObject, peakHz: Long): JSONArray? {
-        val load = reply.optJSONArray(GPU_LOAD) ?: return null
-        val clock = reply.optJSONArray(GPU_CLOCK) ?: return null
-        if (load.length() == 0 || load.length() != clock.length()) return null
-        val values = JSONArray()
-        for (index in 0 until load.length()) {
-            val value = PeakLoad.gpu(load.optDouble(index), clock.optDouble(index), peakHz) ?: return null
-            values.put(value)
+        if (cpu != null) reply.put(CPU_LOAD, JSONArray().put(kotlin.math.round(cpu)))
+        if (gpu != null) {
+            // KGSL exposes a complete sampling window as one reading.
+            reply.put(GPU_LOAD, JSONArray().put(gpu))
         }
-        return values
+        return Result(reply.toString(), cpu, gpu)
     }
 
-    private fun Double.roundForDisplay() = kotlin.math.round(this)
+    private fun JSONObject.hasSamples(key: String): Boolean = (optJSONArray(key)?.length() ?: 0) > 0
 }

@@ -30,12 +30,12 @@ class PeakLoadTest {
         assertNull(PeakLoad.averageClock(after, before, 2_000))
     }
 
-    @Test fun gpuBusyAtHalfThePeakRepresentsHalfThePeakWork() {
-        val peak = 1_300_000_000L
-        assertEquals(45.0, PeakLoad.gpu(90.0, 650.0, peak)!!, 0.001)
-        assertEquals(45.0, PeakLoad.gpu(90.0, 650_000.0, peak)!!, 0.001)
-        assertEquals(45.0, PeakLoad.gpu(90.0, 650_000_000.0, peak)!!, 0.001)
-        assertEquals(0.0, PeakLoad.gpu(0.0, 0.0, peak)!!, 0.001)
-        assertNull(PeakLoad.gpu(90.0, 0.0, peak))
+    @Test fun gpuUsageIsTheBusyShareOfTheDriverWindow() {
+        assertEquals(80.0, PeakLoad.gpuBusyPercentage(" 800000  1000000\n")!!, 0.001)
+        assertEquals(0.0, PeakLoad.gpuBusyPercentage("0 1000000")!!, 0.001)
+        assertEquals(100.0, PeakLoad.gpuBusyPercentage("1000000\t1000000")!!, 0.001)
+        assertNull(PeakLoad.gpuBusyPercentage("0 0"))
+        assertNull(PeakLoad.gpuBusyPercentage("1000001 1000000"))
+        assertNull(PeakLoad.gpuBusyPercentage("80 %"))
     }
 }

@@ -18,7 +18,6 @@ internal class DeviceCapacity(private val context: Context) {
     private val samsungS26UltraJapan = Build.MODEL == "SM-S948Q" && Build.SOC_MODEL == "SM8850"
     private val cpuDirectory = File("/sys/devices/system/cpu")
     private val policies by lazy(::readPolicies)
-    val gpuPeakHz by lazy(::readGpuPeak)
     private val hardwareManager by lazy { context.getSystemService(HardwarePropertiesManager::class.java) }
     private var previous: Counters? = null
     private var useHardwareManager = true
@@ -76,15 +75,9 @@ internal class DeviceCapacity(private val context: Context) {
         )
     }
 
-    private fun readGpuPeak(): Long? {
-        // Available frequencies are the hardware table. The scaling limit can change with heat.
-        val kgsl = read(File("/sys/class/kgsl/kgsl-3d0/gpu_available_frequencies"))
-            ?.split(WHITESPACE)?.mapNotNull(String::toLongOrNull)?.maxOrNull()
-        if (kgsl != null && kgsl >= 10_000_000) return kgsl
-        val samsung = read(File("/sys/kernel/gpu/gpu_freq_table"))
-            ?.split(WHITESPACE)?.mapNotNull(String::toLongOrNull)?.maxOrNull()
-        if (samsung != null && samsung in 100..5_000) return samsung * 1_000_000
-        return if (samsungS26UltraJapan) 1_300_000_000 else null
+    fun gpuUsage(): Double? {
+        val counters = read(KGSL_GPU_BUSY) ?: return null
+        return PeakLoad.gpuBusyPercentage(counters)
     }
 
     private fun hardwareTimes(): Map<Int, CpuTime>? =
@@ -132,6 +125,7 @@ internal class DeviceCapacity(private val context: Context) {
         }
 
     companion object {
+        private val KGSL_GPU_BUSY = File("/sys/class/kgsl/kgsl-3d0/gpubusy")
         private const val MIN_SAMPLE_MS = 150
         private const val MAX_SAMPLE_MS = 4_000
         private val WHITESPACE = Regex("\\s+")

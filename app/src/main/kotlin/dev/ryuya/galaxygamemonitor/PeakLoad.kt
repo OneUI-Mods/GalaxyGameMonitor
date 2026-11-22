@@ -11,6 +11,8 @@ internal data class CpuTime(val busy: Long, val total: Long)
 internal data class ClockTime(val frequencyKHz: Long, val ticks: Long)
 
 internal object PeakLoad {
+    private val WHITESPACE = Regex("\\s+")
+
     fun cpu(
         policies: List<CpuPolicy>,
         before: Map<Int, CpuTime>,
@@ -53,16 +55,12 @@ internal object PeakLoad {
         return if (ticks > 0) (weightedKHz / ticks / peakKHz).coerceIn(0.0, 1.0) else null
     }
 
-    fun gpu(load: Double, clock: Double, peakHz: Long): Double? {
-        if (!load.isFinite() || load !in 0.0..100.0 || !clock.isFinite() || clock < 0 || peakHz <= 0) return null
-        if (load == 0.0) return 0.0
-        if (clock <= 0) return null
-        val hz = when {
-            clock >= 10_000_000 -> clock
-            clock >= 10_000 -> clock * 1_000
-            else -> clock * 1_000_000
-        }
-        if (hz > peakHz * 1.05) return null
-        return load * (hz / peakHz).coerceAtMost(1.0)
+    fun gpuBusyPercentage(counters: String): Double? {
+        val times = counters.trim().split(WHITESPACE, limit = 3)
+        if (times.size != 2) return null
+        val busy = times[0].toLongOrNull() ?: return null
+        val total = times[1].toLongOrNull() ?: return null
+        if (total <= 0 || busy !in 0..total) return null
+        return 100.0 * busy / total
     }
 }
