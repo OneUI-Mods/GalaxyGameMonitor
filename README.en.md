@@ -10,7 +10,7 @@ Use **System monitor items** to show or hide FPS, CPU usage, GPU usage, GPU cloc
 
 Game RAM is the resident proportional set size (PSS) of the foreground game's processes in GiB, including graphics memory that Android attributes to them.
 
-Choose 1 to 8 items per row. The default is 4. Use **Reorder items** to move metrics up or down. The same controls are available under **Monitor** in Game Booster settings.
+Choose 1 to 8 items per row. The default is 4. Use **Reorder items** to move metrics up or down. During a game, open **Game Booster settings → System monitor** in the side panel to edit the same settings. In the full Game Booster settings screen, tap **Monitor** at the top.
 
 Turn off **Show in screenshots and screen recordings** to exclude the monitor from captured output while it remains visible on the device. The setting is on by default.
 

@@ -12,12 +12,26 @@ import android.widget.TextView
 import kotlin.math.roundToInt
 
 internal object MonitorOrderDialog {
+    class Editor(val view: LinearLayout, private val draft: List<MonitorItem>) {
+        fun selectedOrder(): List<MonitorItem> = draft.toList()
+    }
+
     fun show(
         context: Context,
         strings: Resources,
         order: List<MonitorItem>,
         save: (List<MonitorItem>) -> Unit,
     ): AlertDialog {
+        val editor = createEditor(context, strings, order)
+        return AlertDialog.Builder(context)
+            .setTitle(strings.getString(R.string.monitor_order))
+            .setView(ScrollView(context).apply { addView(editor.view) })
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(android.R.string.ok) { _, _ -> save(editor.selectedOrder()) }
+            .show()
+    }
+
+    fun createEditor(context: Context, strings: Resources, order: List<MonitorItem>): Editor {
         val draft = order.toMutableList()
         val width = (48 * context.resources.displayMetrics.density).roundToInt()
         val rows = LinearLayout(context).apply {
@@ -68,12 +82,7 @@ internal object MonitorOrderDialog {
         }
         refreshButtons()
 
-        return AlertDialog.Builder(context)
-            .setTitle(strings.getString(R.string.monitor_order))
-            .setView(ScrollView(context).apply { addView(rows) })
-            .setNegativeButton(android.R.string.cancel, null)
-            .setPositiveButton(android.R.string.ok) { _, _ -> save(draft.toList()) }
-            .show()
+        return Editor(rows, draft)
     }
 
     private fun arrow(context: Context, glyph: String, label: String, move: () -> Unit) =

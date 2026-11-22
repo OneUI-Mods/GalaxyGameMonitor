@@ -2,6 +2,8 @@
     <string name="app_name">Galaxy Game Monitor</string>
     <string name="monitor_items_heading">System monitor items</string>
     <string name="monitor_settings_action">Monitor</string>
+    <string name="monitor_in_game_action">System monitor</string>
+    <string name="monitor_in_game_back">Back from %1$s</string>
     <string name="monitor_items_per_row">Items per row</string>
     <string name="monitor_items_per_row_value">Items per row: %1$d</string>
     <string name="monitor_settings_unavailable">Monitor settings are unavailable. Open Galaxy Game Monitor and try again.</string>

@@ -30,6 +30,7 @@ class HookEntry : XposedModule() {
     private var monitorSettingsEntry: GameBoosterMonitorSettings? = null
     private var gameMemory: GameMemory? = null
     private val monitorCapture = MonitorCapture()
+    private val inGameSettings = InGameMonitorSettings()
     @Volatile private var retired = false
     private val loggedCpu = AtomicBoolean()
     private val loggedGpu = AtomicBoolean()
@@ -44,7 +45,7 @@ class HookEntry : XposedModule() {
 
         installConnectionHook(param.classLoader)
         installSettingsHook(param.classLoader)
-        installCaptureHook()
+        installWindowHook()
     }
 
     @Synchronized
@@ -55,6 +56,7 @@ class HookEntry : XposedModule() {
         attached.values.forEach(GameBoosterDisplaySettings::close)
         monitorOverlay?.close()
         monitorSettingsEntry?.close()
+        inGameSettings.close()
         gameMemory?.close()
         monitorCapture.retire()
         return true
@@ -67,7 +69,8 @@ class HookEntry : XposedModule() {
         if (param.processName != DisplaySettings.GAME_BOOSTER) return
         if (!installConnectionHook(loader)) return
         installSettingsHook(loader)
-        installCaptureHook()
+        installWindowHook()
+        inGameSettings.attachExisting()
         val openSettings = (state.getOrNull(3) as? WeakReference<*>)?.get() as? Activity
         if (openSettings != null) monitorSettingsEntry?.attach(openSettings)
         val context = state.getOrNull(1) as? Context
@@ -96,21 +99,24 @@ class HookEntry : XposedModule() {
         }.onFailure { Log.w(TAG, "Game Booster settings hook unavailable", it) }
     }
 
-    private fun installCaptureHook() {
+    private fun installWindowHook() {
         runCatching {
             val addWindow = Class.forName("android.view.WindowManagerImpl")
                 .getDeclaredMethod("addView", View::class.java, ViewGroup.LayoutParams::class.java)
             hook(addWindow).setId("monitor-capture-window").intercept { chain ->
                 val result = chain.proceed()
                 val params = chain.args.getOrNull(1) as? WindowManager.LayoutParams
-                if (!retired && params?.title?.contentEquals("GameBooster PerformanceMonitor") == true) {
-                    runCatching {
-                        (chain.args.firstOrNull() as? View)?.let(monitorCapture::onWindowAdded)
-                    }.onFailure { Log.w(TAG, "Could not initialize monitor capture policy", it) }
+                val view = chain.args.firstOrNull() as? View
+                if (!retired && view != null) {
+                    when (params?.title?.toString()) {
+                        "GameBooster PerformanceMonitor" -> runCatching { monitorCapture.onWindowAdded(view) }
+                            .onFailure { Log.w(TAG, "Could not initialize monitor capture policy", it) }
+                        InGameMonitorSettings.WINDOW_TITLE -> inGameSettings.onWindowAdded(view)
+                    }
                 }
                 result
             }
-        }.onFailure { Log.w(TAG, "Monitor capture window hook unavailable", it) }
+        }.onFailure { Log.w(TAG, "Game Booster window hook unavailable", it) }
     }
 
     private fun installConnectionHook(loader: ClassLoader): Boolean {
