@@ -4,6 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="?attr/colorSurface"
+    android:clipToPadding="false"
     android:fillViewport="true">
 
     <LinearLayout
@@ -20,14 +21,14 @@
             android:layout_height="wrap_content"
             android:accessibilityHeading="true"
             android:text="@string/app_name"
-            android:textAppearance="?attr/textAppearanceHeadlineMedium" />
+            android:textAppearance="?attr/textAppearanceDisplaySmall"
+            android:textColor="?attr/colorOnSurface" />
 
         <com.google.android.material.card.MaterialCardView
+            style="@style/Widget.Material3.CardView.Filled"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
-            app:cardBackgroundColor="?attr/colorSurfaceContainerLow"
-            app:strokeColor="?attr/colorOutlineVariant">
+            android:layout_marginTop="24dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -40,8 +41,8 @@
                     android:layout_height="wrap_content"
                     android:layout_marginBottom="8dp"
                     android:accessibilityHeading="true"
-                    android:text="@string/monitor_items_heading"
-                    android:textAppearance="?attr/textAppearanceTitleMedium" />
+                    android:text="@string/monitor_layout_heading"
+                    android:textAppearance="?attr/textAppearanceTitleLarge" />
 
                 <com.google.android.material.textview.MaterialTextView
                     android:id="@+id/items_per_row_value"
@@ -56,22 +57,44 @@
                     android:layout_height="wrap_content"
                     android:contentDescription="@string/monitor_items_per_row" />
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/reorder_monitor_items"
-                    style="@style/Widget.Material3.Button.OutlinedButton"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:minHeight="48dp"
-                    android:text="@string/monitor_order" />
-
                 <com.google.android.material.materialswitch.MaterialSwitch
                     android:id="@+id/show_in_capture"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:minHeight="48dp"
-                    android:switchPadding="16dp"
                     android:text="@string/monitor_show_in_capture"
-                    android:textAppearance="?attr/textAppearanceBodyLarge" />
+                    android:textAppearance="?attr/textAppearanceBodyLarge"
+                    app:switchPadding="16dp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.card.MaterialCardView
+            style="@style/Widget.Material3.CardView.Filled"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="18dp">
+
+                <com.google.android.material.textview.MaterialTextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:accessibilityHeading="true"
+                    android:text="@string/monitor_items_heading"
+                    android:textAppearance="?attr/textAppearanceTitleLarge" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/reorder_monitor_items"
+                    style="@style/Widget.Material3.Button.TonalButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:minHeight="48dp"
+                    android:text="@string/monitor_order" />
 
                 <LinearLayout
                     android:id="@+id/monitor_items"
@@ -90,11 +113,10 @@
         </com.google.android.material.card.MaterialCardView>
 
         <com.google.android.material.card.MaterialCardView
+            style="@style/Widget.Material3.CardView.Filled"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            app:cardBackgroundColor="?attr/colorSurfaceContainerLow"
-            app:strokeColor="?attr/colorOutlineVariant">
+            android:layout_marginTop="12dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -102,14 +124,21 @@
                 android:orientation="vertical"
                 android:padding="18dp">
 
+                <com.google.android.material.textview.MaterialTextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:accessibilityHeading="true"
+                    android:text="@string/monitor_usage_heading"
+                    android:textAppearance="?attr/textAppearanceTitleLarge" />
+
                 <com.google.android.material.materialswitch.MaterialSwitch
                     android:id="@+id/peak_relative"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:minHeight="56dp"
-                    android:switchPadding="16dp"
                     android:text="@string/peak_relative_toggle"
-                    android:textAppearance="?attr/textAppearanceTitleMedium" />
+                    android:textAppearance="?attr/textAppearanceTitleMedium"
+                    app:switchPadding="16dp" />
 
                 <com.google.android.material.textview.MaterialTextView
                     android:id="@+id/mode"
@@ -125,9 +154,9 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
                     android:minHeight="56dp"
-                    android:switchPadding="16dp"
                     android:text="@string/gpu_peak_relative_toggle"
-                    android:textAppearance="?attr/textAppearanceTitleMedium" />
+                    android:textAppearance="?attr/textAppearanceTitleMedium"
+                    app:switchPadding="16dp" />
 
                 <com.google.android.material.textview.MaterialTextView
                     android:id="@+id/gpu_mode"

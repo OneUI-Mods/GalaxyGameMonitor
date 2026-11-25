@@ -1,13 +1,16 @@
 package dev.ryuya.galaxygamemonitor
 
+import android.content.res.Configuration
 import android.os.Bundle
 import android.os.UserManager
 import android.view.View
 import android.widget.LinearLayout
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.color.DynamicColors
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.slider.Slider
 import com.google.android.material.textview.MaterialTextView
@@ -21,8 +24,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        DynamicColors.applyToActivityIfAvailable(this)
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        val nightMode = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+        val lightBackground = nightMode != Configuration.UI_MODE_NIGHT_YES
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = lightBackground
+            isAppearanceLightNavigationBars = lightBackground
+        }
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.settings_screen)) { view, windowInsets ->
             val insets = windowInsets.getInsets(
                 WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout(),
@@ -68,7 +78,7 @@ class MainActivity : AppCompatActivity() {
         }
         arrangeSwitches(settings.order)
         findViewById<MaterialButton>(R.id.reorder_monitor_items).setOnClickListener {
-            MonitorOrderDialog.show(this, resources, DisplaySettings.read(this).order) { order ->
+            MonitorOrderDialog.showMaterial(this, DisplaySettings.read(this).order) { order ->
                 DisplaySettings.setOrder(this, order)
                 arrangeSwitches(order)
             }

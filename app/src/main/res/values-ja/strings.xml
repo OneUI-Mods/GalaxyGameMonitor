@@ -1,6 +1,8 @@
 <resources>
     <string name="app_name">Galaxy Game Monitor</string>
+    <string name="monitor_layout_heading">モニターのレイアウト</string>
     <string name="monitor_items_heading">システムモニターの表示項目</string>
+    <string name="monitor_usage_heading">CPU・GPUの使用率表示</string>
     <string name="monitor_settings_action">表示項目</string>
     <string name="monitor_in_game_action">システムモニター</string>
     <string name="monitor_in_game_back">%1$sから戻る</string>

@@ -1,6 +1,8 @@
 <resources>
     <string name="app_name">Galaxy Game Monitor</string>
+    <string name="monitor_layout_heading">Monitor layout</string>
     <string name="monitor_items_heading">System monitor items</string>
+    <string name="monitor_usage_heading">CPU and GPU readings</string>
     <string name="monitor_settings_action">Monitor</string>
     <string name="monitor_in_game_action">System monitor</string>
     <string name="monitor_in_game_back">Back from %1$s</string>

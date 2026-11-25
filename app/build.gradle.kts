@@ -16,8 +16,8 @@ android {
         applicationId = namespace
         minSdk = 35
         targetSdk = 37
-        versionName = "0.4.6"
-        versionCode = 19
+        versionName = "0.4.7"
+        versionCode = 20
     }
     signingConfigs {
         if (distribution.isNotEmpty()) {

@@ -9,6 +9,7 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlin.math.roundToInt
 
 internal object MonitorOrderDialog {
@@ -26,6 +27,16 @@ internal object MonitorOrderDialog {
         return AlertDialog.Builder(context)
             .setTitle(strings.getString(R.string.monitor_order))
             .setView(ScrollView(context).apply { addView(editor.view) })
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(android.R.string.ok) { _, _ -> save(editor.selectedOrder()) }
+            .show()
+    }
+
+    fun showMaterial(context: Context, order: List<MonitorItem>, save: (List<MonitorItem>) -> Unit) {
+        val builder = MaterialAlertDialogBuilder(context)
+        val editor = createEditor(builder.context, context.resources, order)
+        builder.setTitle(R.string.monitor_order)
+            .setView(ScrollView(builder.context).apply { addView(editor.view) })
             .setNegativeButton(android.R.string.cancel, null)
             .setPositiveButton(android.R.string.ok) { _, _ -> save(editor.selectedOrder()) }
             .show()
