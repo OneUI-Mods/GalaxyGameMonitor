@@ -2,6 +2,8 @@
 
 # Galaxy Game Monitor
 
+インストールにはAndroid 17（API 37）以降が必要です。
+
 ゲームブースターのシステムモニターに、カーネルが計測したCPUとGPUの使用率を表示します。GPUはAdreno、ExynosのXclipseとMaliに対応します。
 
 現在のGPUクロックを取得できる端末では、GPU使用率の横にMHzで表示します。

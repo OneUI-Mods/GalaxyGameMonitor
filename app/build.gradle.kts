@@ -14,10 +14,10 @@ android {
     buildFeatures { buildConfig = true }
     defaultConfig {
         applicationId = namespace
-        minSdk = 35
+        minSdk = 37
         targetSdk = 37
-        versionName = "0.4.7"
-        versionCode = 20
+        versionName = "0.4.8"
+        versionCode = 21
     }
     signingConfigs {
         if (distribution.isNotEmpty()) {

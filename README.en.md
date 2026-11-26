@@ -2,6 +2,8 @@
 
 # Galaxy Game Monitor
 
+Installation requires Android 17 (API 37) or later.
+
 Show CPU and GPU usage measured by the kernel in Game Booster’s system monitor. GPU support includes Adreno and the Xclipse and Mali GPUs used on Exynos devices.
 
 On devices that expose the current GPU clock, the overlay shows it in MHz next to GPU usage.
