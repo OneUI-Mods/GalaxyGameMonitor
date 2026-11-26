@@ -25,3 +25,9 @@ The default CPU display shows the share of time the CPU was busy. Enable **Show 
 After updating the module, choose **Reload Game Booster**, then return to your game. This button requires root access for Galaxy Game Monitor.
 
 Each metric keeps Game Booster’s standard value when the device cannot supply the required telemetry.
+
+### GPU performance
+
+In **System monitor items**, enable **Bypass GOS GPU clock cap** to filter Samsung Game Optimizing Service’s GPU ceiling requests during a game. On compatible Adreno devices, choose **System default**, **60 FPS**, or **120 FPS** for the GMU target. The GMU reads the target as an input to GPU clock selection, and the panel shows the effective value.
+
+Enable **Game Optimizing Service** in the module’s Vector scope. On first use after adding this scope, GOS must start a new process so Vector can load the module into it. Grant Galaxy Game Monitor root access for the GMU target control.

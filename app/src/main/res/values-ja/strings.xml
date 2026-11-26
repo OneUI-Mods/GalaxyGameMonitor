@@ -37,4 +37,19 @@
     <string name="reload_primary_user_only">メインユーザーから再読み込みしてください。</string>
     <string name="reload_unavailable">この端末ではゲームブースターを利用できません。</string>
     <string name="reload_failed">ゲームブースターを再読み込みできませんでした。</string>
+    <string name="gpu_performance_heading">GPUパフォーマンス</string>
+    <string name="gos_gpu_max_bypass">GOSのGPUクロック上限を解除</string>
+    <string name="gos_gpu_max_system">SamsungのGPUクロック制御を使用中</string>
+    <string name="gos_gpu_max_active">GOSのGPUクロック上限を解除中</string>
+    <string name="gos_gpu_max_waiting">対応するGOSのGPU上限要求を待機中</string>
+    <string name="gpu_waiting_for_game">GOSが監視するゲームの起動を待機中</string>
+    <string name="gmu_target">GMUの目標FPS</string>
+    <string name="gmu_system">システム既定</string>
+    <string name="gmu_60">60 FPS</string>
+    <string name="gmu_120">120 FPS</string>
+    <string name="gmu_effective">GMUの実効目標 %1$d FPS</string>
+    <string name="gmu_waiting">GPUファームウェアへの反映を待機中</string>
+    <string name="gmu_root_required">適用にはGalaxy Game Monitorのroot権限が必要です</string>
+    <string name="gmu_unsupported">この端末はGMU目標の切り替えに対応していません</string>
+    <string name="gmu_failed">GMUの目標を適用できませんでした</string>
 </resources>

@@ -160,10 +160,33 @@ class DisplaySettingsProvider : ContentProvider() {
     override fun onCreate() = true
 
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle {
-        if (callingPackage != DisplaySettings.GAME_BOOSTER) {
+        val caller = callingPackage
+        val owner = requireNotNull(context)
+        when (method) {
+            GpuPerformanceSettings.READ -> {
+                if (caller != DisplaySettings.GAME_BOOSTER && caller != GpuPerformanceSettings.GOS) throw SecurityException()
+                return GpuPerformanceSettings.snapshot(owner)
+            }
+            GpuPerformanceSettings.UPDATE -> {
+                if (caller != DisplaySettings.GAME_BOOSTER) throw SecurityException()
+                GpuPerformanceSettings.update(owner, requireNotNull(extras))
+                return GpuPerformanceSettings.snapshot(owner)
+            }
+            GpuPerformanceSettings.SESSION -> {
+                if (caller != GpuPerformanceSettings.GOS) throw SecurityException()
+                val config = GpuPerformanceSettings.read(owner)
+                GmuPerformanceController.report(
+                    owner,
+                    extras?.getBoolean(GpuPerformanceSettings.KEY_GAME) == true,
+                    extras?.getBoolean(GpuPerformanceSettings.KEY_MATCHED) == true && config.bypass,
+                    config.mode.fps,
+                )
+                return Bundle.EMPTY
+            }
+        }
+        if (caller != DisplaySettings.GAME_BOOSTER) {
             throw SecurityException("Only Game Booster can access the monitor settings")
         }
-        val owner = requireNotNull(context)
         when (method) {
             DisplaySettings.READ -> Unit
             DisplaySettings.UPDATE -> update(owner, requireNotNull(extras))

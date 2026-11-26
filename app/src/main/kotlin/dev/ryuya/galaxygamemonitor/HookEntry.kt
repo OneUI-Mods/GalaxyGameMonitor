@@ -3,6 +3,7 @@ package dev.ryuya.galaxygamemonitor
 import android.app.Activity
 import android.content.ComponentName
 import android.content.Context
+import android.os.Bundle
 import android.os.IBinder
 import android.os.UserManager
 import android.util.Log
@@ -32,6 +33,7 @@ class HookEntry : XposedModule() {
     private var gameMemory: GameMemory? = null
     private val monitorCapture = MonitorCapture()
     private val inGameSettings = InGameMonitorSettings()
+    private var gosPerformance: GosPerformanceHook? = null
     @Volatile private var retired = false
     private val loggedCpu = AtomicBoolean()
     private val loggedGpuMode = AtomicReference<Boolean?>()
@@ -41,8 +43,12 @@ class HookEntry : XposedModule() {
     }
 
     override fun onPackageReady(param: PackageReadyParam) {
-        val booster = DisplaySettings.GAME_BOOSTER
-        if (!param.isFirstPackage || param.packageName != booster || processName != booster) return
+        if (!param.isFirstPackage || param.packageName != processName) return
+        if (param.packageName == GpuPerformanceSettings.GOS) {
+            installGosHook(param.classLoader)
+            return
+        }
+        if (param.packageName != DisplaySettings.GAME_BOOSTER) return
 
         installConnectionHook(param.classLoader)
         installSettingsHook(param.classLoader)
@@ -52,6 +58,11 @@ class HookEntry : XposedModule() {
     @Synchronized
     override fun onHotReloading(param: HotReloadingParam): Boolean {
         val loader = hostLoader ?: return false
+        if (processName == GpuPerformanceSettings.GOS) {
+            val performance = gosPerformance ?: return false
+            param.setSavedInstanceState(arrayOf(loader, performance.retire()))
+            return true
+        }
         param.setSavedInstanceState(arrayOf(loader, hostContext, connectedProxy, monitorSettingsEntry?.activity))
         retired = true
         attached.values.forEach(GameBoosterDisplaySettings::close)
@@ -67,6 +78,15 @@ class HookEntry : XposedModule() {
         onModuleLoaded(param)
         val state = param.savedInstanceState as? Array<*> ?: return
         val loader = state.getOrNull(0) as? ClassLoader ?: return
+        if (param.processName == GpuPerformanceSettings.GOS) {
+            val previous = state.getOrNull(1) as? Array<*>
+            val performance = installGosHook(loader) ?: return
+            val context = previous?.getOrNull(0) as? Context
+            if (context != null) performance.attach(context, previous.getOrNull(1) as? Bundle)
+            param.oldHookHandles.forEach { it.unhook() }
+            logHotReload()
+            return
+        }
         if (param.processName != DisplaySettings.GAME_BOOSTER) return
         if (!installConnectionHook(loader)) return
         installSettingsHook(loader)
@@ -83,6 +103,18 @@ class HookEntry : XposedModule() {
             if (!rebound) return
         }
         param.oldHookHandles.forEach { it.unhook() }
+        logHotReload()
+    }
+
+    private fun installGosHook(loader: ClassLoader): GosPerformanceHook? = runCatching {
+        GosPerformanceHook(this).also {
+            it.install(loader)
+            hostLoader = loader
+            gosPerformance = it
+        }
+    }.onFailure { Log.w(TAG, "GOS GPU performance hooks unavailable", it) }.getOrNull()
+
+    private fun logHotReload() {
         Log.i(TAG, "ONEUI_MODS_HOT_RELOAD package=${BuildConfig.APPLICATION_ID} version=${BuildConfig.VERSION_CODE} pid=${android.os.Process.myPid()}")
     }
 
