@@ -70,7 +70,13 @@ internal object GmuPerformanceController {
             val (session, status) = GmuRootSession.open()
             root = session ?: return State(true, gosMatched, status)
         }
-        val effective = checkNotNull(root).apply(fps)
+        val sample = checkNotNull(root).update(fps)
+        val effective = sample.fps
+        when (sample.recovery) {
+            GmuRootSession.Recovery.RAW_CHANGED -> Log.i(TAG, "GMU target setting changed during the game; reapplied $fps FPS")
+            GmuRootSession.Recovery.EFFECTIVE_CHANGED -> Log.i(TAG, "GMU effective target changed while the setting was $fps FPS; reapplied")
+            null -> Unit
+        }
         val status = if (fps == effective) Status.ACTIVE else Status.WAITING
         if (status == Status.ACTIVE && (state.effective != effective || state.status != Status.ACTIVE)) {
             Log.i(TAG, "GMU target effective at $effective FPS")
@@ -93,18 +99,33 @@ internal object GmuPerformanceController {
 }
 
 private class GmuRootSession(private val process: Process) : Closeable {
+    enum class Recovery { RAW_CHANGED, EFFECTIVE_CHANGED }
+    data class Sample(val fps: Int?, val recovery: Recovery? = null)
+
     private val input = process.outputStream.bufferedWriter()
     private val output = process.inputStream.bufferedReader()
     private val pending = StringBuilder()
+    private var confirmed: Int? = null
+    private var sampledAt = 0L
     val alive get() = process.isAlive
 
-    fun apply(fps: Int): Int? {
+    fun update(fps: Int): Sample {
         require(fps == 60 || fps == 120)
-        input.write("$fps\n")
+        val verify = confirmed != fps || SystemClock.elapsedRealtime() - sampledAt >= VERIFY_INTERVAL
+        input.write("$fps ${if (verify) "verify" else "check"}\n")
         input.flush()
         val reply = readReply()
-        if (!reply.startsWith("effective ")) throw IOException("GMU target write was rejected")
-        return reply.substringAfter(' ').toIntOrNull()
+        if (reply == "unchanged") return Sample(confirmed)
+        val recovery = when (reply.substringBefore(' ')) {
+            "effective" -> null
+            "raw-changed" -> Recovery.RAW_CHANGED
+            "effective-changed" -> Recovery.EFFECTIVE_CHANGED
+            else -> throw IOException("GMU target write was rejected")
+        }
+        val effective = reply.substringAfter(' ', "").toIntOrNull()
+        confirmed = effective.takeIf { it == fps }
+        sampledAt = SystemClock.elapsedRealtime()
+        return Sample(effective, recovery)
     }
 
     private fun readReply(): String {
@@ -131,7 +152,9 @@ private class GmuRootSession(private val process: Process) : Closeable {
     }
 
     companion object {
-        private const val GMU = "/sys/class/kgsl/kgsl-3d0/gmu"
+        private const val VERIFY_INTERVAL = 12_000L
+        private const val KGSL = "/sys/class/kgsl/kgsl-3d0"
+        private const val GMU = "$KGSL/gmu"
         private const val TARGET = "$GMU/dcvs_tunables/target_fps"
 
         fun open(): Pair<GmuRootSession?, Status> {
@@ -160,6 +183,7 @@ private class GmuRootSession(private val process: Process) : Closeable {
             [ "${'$'}(/system/bin/id -u)" = 0 ] || exit 1
             target='$TARGET'
             current='$GMU/dcvs/dcvs_tunables_cur'
+            reset_count='$KGSL/reset_count'
             [ -r "${'$'}current" ] && [ -w "${'$'}target" ] || { echo unsupported; exit 2; }
             exec 3< "${'$'}target" || exit 2
             /system/bin/flock -n 3 || { echo busy; exit 3; }
@@ -169,6 +193,8 @@ private class GmuRootSession(private val process: Process) : Closeable {
                 *[!0-9]*|'') exit 2 ;;
             esac
             owned=
+            previous=
+            last_reset=
             restore() {
                 [ -n "${'$'}owned" ] || return
                 read -r raw < "${'$'}target" || return
@@ -185,16 +211,34 @@ private class GmuRootSession(private val process: Process) : Closeable {
                 done < "${'$'}current"
             }
             echo ready
-            while read -r -t 9 desired; do
+            while read -r -t 9 desired request; do
                 case "${'$'}desired" in 60|120) ;; *) exit 2 ;; esac
+                case "${'$'}request" in check|verify) ;; *) exit 2 ;; esac
                 read -r raw < "${'$'}target" || exit 2
-                active=${'$'}(effective)
+                reset=
+                # A GPU startup increments reset_count without issuing a firmware query.
+                if [ -r "${'$'}reset_count" ]; then read -r reset < "${'$'}reset_count" || reset=; fi
+                reason=effective
+                active=
+                if [ "${'$'}raw" = "${'$'}desired" ]; then
+                    if [ "${'$'}request" = check ] && [ "${'$'}reset" = "${'$'}last_reset" ] && [ "${'$'}desired" = "${'$'}previous" ]; then
+                        echo unchanged
+                        continue
+                    fi
+                    active=${'$'}(effective)
+                fi
                 if [ "${'$'}raw" != "${'$'}desired" ] || { [ -n "${'$'}active" ] && [ "${'$'}active" != "${'$'}desired" ]; }; then
+                    if [ "${'$'}desired" = "${'$'}previous" ]; then
+                        if [ "${'$'}raw" != "${'$'}desired" ]; then reason=raw-changed
+                        else reason=effective-changed; fi
+                    fi
                     printf '%s\n' "${'$'}desired" > "${'$'}target" || exit 2
                     owned=${'$'}desired
                     active=${'$'}(effective)
                 fi
-                printf 'effective %s\n' "${'$'}active"
+                printf '%s %s\n' "${'$'}reason" "${'$'}active"
+                previous=${'$'}desired
+                last_reset=${'$'}reset
             done
         """.trimIndent()
     }
