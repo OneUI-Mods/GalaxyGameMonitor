@@ -33,6 +33,7 @@ class HookEntry : XposedModule() {
     private var gameMemory: GameMemory? = null
     private val monitorCapture = MonitorCapture()
     private val inGameSettings = InGameMonitorSettings()
+    private val boosterGameSession = BoosterGameSession()
     private var gosPerformance: GosPerformanceHook? = null
     @Volatile private var retired = false
     private val loggedCpu = AtomicBoolean()
@@ -69,6 +70,7 @@ class HookEntry : XposedModule() {
         monitorOverlay?.close()
         monitorSettingsEntry?.close()
         inGameSettings.close()
+        boosterGameSession.close()
         gameMemory?.close()
         monitorCapture.retire()
         return true
@@ -96,6 +98,7 @@ class HookEntry : XposedModule() {
         if (openSettings != null) monitorSettingsEntry?.attach(openSettings)
         val context = state.getOrNull(1) as? Context
         val proxy = state.getOrNull(2) as? Class<*>
+        if (context != null) boosterGameSession.attach(context)
         if (context != null && proxy != null) {
             val rebound = runCatching { installRequestHook(proxy, context) }.onFailure {
                 Log.w(TAG, "Waiting for Game Booster to reconnect its telemetry service", it)
@@ -144,7 +147,10 @@ class HookEntry : XposedModule() {
                     when (params?.title?.toString()) {
                         "GameBooster PerformanceMonitor" -> runCatching { monitorCapture.onWindowAdded(view) }
                             .onFailure { Log.w(TAG, "Could not initialize monitor capture policy", it) }
-                        InGameMonitorSettings.WINDOW_TITLE -> inGameSettings.onWindowAdded(view)
+                        InGameMonitorSettings.WINDOW_TITLE -> {
+                            boosterGameSession.attach(view.context)
+                            inGameSettings.onWindowAdded(view)
+                        }
                     }
                 }
                 result
@@ -172,6 +178,7 @@ class HookEntry : XposedModule() {
                     val receiver = chain.thisObject ?: return@tryInstall
                     val binder = binderField.get(receiver) ?: return@tryInstall
                     val context = contextField.get(receiver) as? Context ?: return@tryInstall
+                    boosterGameSession.attach(context)
                     installRequestHook(binder.javaClass, context.applicationContext)
                 }.onFailure {
                     Log.w(TAG, "GOS telemetry hook unavailable", it)

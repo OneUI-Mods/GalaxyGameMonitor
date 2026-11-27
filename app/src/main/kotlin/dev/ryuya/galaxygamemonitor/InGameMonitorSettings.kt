@@ -160,7 +160,7 @@ internal class InGameMonitorSettings {
         }
 
         private fun openGpuSettings(entry: TextView) {
-            val controls = GpuPerformanceControls(context, strings, showHeading = false).apply {
+            val controls = GpuPerformanceControls(context, strings, showHeading = false, inGamePanel = true).apply {
                 setPaddingRelative(dp(24), dp(12), dp(24), dp(8))
             }
             openPage(gpuCard, entry, gpuLabel, controls)

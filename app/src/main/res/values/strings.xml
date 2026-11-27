@@ -52,4 +52,13 @@
     <string name="gmu_root_required">Grant Galaxy Game Monitor root access to apply the target</string>
     <string name="gmu_unsupported">GMU target control is unavailable on this device</string>
     <string name="gmu_failed">Could not apply the GMU target</string>
+    <string name="gos_gpu_max_disconnected">GOS hook disconnected. Check the Vector scope.</string>
+    <string name="gos_ceiling_requested">GOS requested ceiling: %1$d MHz</string>
+    <string name="gos_ceiling_no_request">GOS requested ceiling: no request recorded</string>
+    <string name="gos_ceiling_unavailable">GOS requested ceiling: unavailable</string>
+    <string name="gpu_ceiling_actual">Effective GPU ceiling: %1$d MHz</string>
+    <string name="gpu_ceiling_shared">Shared GPU ceiling: %1$d MHz</string>
+    <string name="gpu_ceiling_unavailable">Current GPU ceiling: unavailable</string>
+    <string name="gmu_current_unavailable">Effective GMU target: unavailable</string>
+    <string name="gmu_waiting_for_game">Waiting for a game</string>
 </resources>

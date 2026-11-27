@@ -16,7 +16,6 @@ import java.util.concurrent.TimeUnit
 internal object GmuPerformanceController {
     data class State(
         val game: Boolean = false,
-        val gosMatched: Boolean = false,
         val status: Status = Status.IDLE,
         val effective: Int? = null,
     )
@@ -31,16 +30,16 @@ internal object GmuPerformanceController {
     @Volatile var state = State()
         private set
 
-    fun report(context: Context, game: Boolean, gosMatched: Boolean, configuredFps: Int?) {
+    fun report(context: Context, game: Boolean, configuredFps: Int?) {
         worker.execute {
             lastHeartbeat = SystemClock.elapsedRealtime()
             val next = try {
-                reconcile(context, game, gosMatched, configuredFps)
+                reconcile(context, game, configuredFps)
             } catch (error: IOException) {
                 Log.w(TAG, "Could not update the GMU target", error)
                 release()
                 attemptedAt = SystemClock.elapsedRealtime()
-                State(game, gosMatched, Status.FAILED)
+                State(game, Status.FAILED)
             }
             publish(context, next)
             expiry?.cancel(false)
@@ -53,22 +52,22 @@ internal object GmuPerformanceController {
         }
     }
 
-    private fun reconcile(context: Context, game: Boolean, gosMatched: Boolean, fps: Int?): State {
+    private fun reconcile(context: Context, game: Boolean, fps: Int?): State {
         val interactive = context.getSystemService(PowerManager::class.java)?.isInteractive == true
         if (!game || !interactive || fps == null) {
             release()
-            return State(game && interactive, gosMatched && game && interactive)
+            return State(game && interactive)
         }
         val now = SystemClock.elapsedRealtime()
         if (root?.alive != true) {
             root?.close()
             root = null
             if (attemptedAt != Long.MIN_VALUE && now - attemptedAt < 10_000L) {
-                return State(true, gosMatched, state.status)
+                return State(true, state.status)
             }
             attemptedAt = now
             val (session, status) = GmuRootSession.open()
-            root = session ?: return State(true, gosMatched, status)
+            root = session ?: return State(true, status)
         }
         val sample = checkNotNull(root).update(fps)
         val effective = sample.fps
@@ -81,7 +80,7 @@ internal object GmuPerformanceController {
         if (status == Status.ACTIVE && (state.effective != effective || state.status != Status.ACTIVE)) {
             Log.i(TAG, "GMU target effective at $effective FPS")
         }
-        return State(true, gosMatched, status, effective)
+        return State(true, status, effective)
     }
 
     private fun release() {
@@ -94,7 +93,7 @@ internal object GmuPerformanceController {
     private fun publish(context: Context, next: State) {
         if (state == next) return
         state = next
-        GpuPerformanceSettings.notifyChange(context)
+        GpuPerformanceSettings.notifyRuntimeChange(context)
     }
 }
 

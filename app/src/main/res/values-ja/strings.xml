@@ -52,4 +52,13 @@
     <string name="gmu_root_required">適用にはGalaxy Game Monitorのroot権限が必要です</string>
     <string name="gmu_unsupported">この端末はGMU目標の切り替えに対応していません</string>
     <string name="gmu_failed">GMUの目標を適用できませんでした</string>
+    <string name="gos_gpu_max_disconnected">GOS未接続。Vectorの適用範囲を確認してください</string>
+    <string name="gos_ceiling_requested">GOSの要求上限 %1$d MHz</string>
+    <string name="gos_ceiling_no_request">GOSの要求上限 未検出</string>
+    <string name="gos_ceiling_unavailable">GOSの要求上限 取得不可</string>
+    <string name="gpu_ceiling_actual">GPUの実効上限 %1$d MHz</string>
+    <string name="gpu_ceiling_shared">GPUの共有上限 %1$d MHz</string>
+    <string name="gpu_ceiling_unavailable">GPUの現在の上限 取得不可</string>
+    <string name="gmu_current_unavailable">GMUの実効目標 取得不可</string>
+    <string name="gmu_waiting_for_game">ゲームの開始を待機中</string>
 </resources>

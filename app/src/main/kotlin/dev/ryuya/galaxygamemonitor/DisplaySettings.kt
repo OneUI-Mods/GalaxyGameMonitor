@@ -172,13 +172,17 @@ class DisplaySettingsProvider : ContentProvider() {
                 GpuPerformanceSettings.update(owner, requireNotNull(extras))
                 return GpuPerformanceSettings.snapshot(owner)
             }
-            GpuPerformanceSettings.SESSION -> {
+            GpuPerformanceSettings.GOS_SESSION -> {
                 if (caller != GpuPerformanceSettings.GOS) throw SecurityException()
+                GpuPerformanceSettings.reportGos(owner, requireNotNull(extras))
+                return Bundle.EMPTY
+            }
+            GpuPerformanceSettings.BOOSTER_SESSION -> {
+                if (caller != DisplaySettings.GAME_BOOSTER) throw SecurityException()
                 val config = GpuPerformanceSettings.read(owner)
                 GmuPerformanceController.report(
                     owner,
                     extras?.getBoolean(GpuPerformanceSettings.KEY_GAME) == true,
-                    extras?.getBoolean(GpuPerformanceSettings.KEY_MATCHED) == true && config.bypass,
                     config.mode.fps,
                 )
                 return Bundle.EMPTY

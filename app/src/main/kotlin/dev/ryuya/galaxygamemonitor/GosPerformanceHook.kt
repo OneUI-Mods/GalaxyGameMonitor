@@ -6,12 +6,12 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.database.ContentObserver
+import android.os.Binder
 import android.os.Bundle
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.Parcel
-import android.os.PowerManager
 import android.os.Process
 import android.os.StrictMode
 import android.util.Log
@@ -28,10 +28,12 @@ internal class GosPerformanceHook(private val module: XposedModule) {
         override fun onChange(selfChange: Boolean) = sync()
     }
     private val retry = Runnable { sync() }
+    private val connection = Binder()
     private val screenState = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) = sync()
     }
     private var context: Context? = null
+    private var gameState: SamsungGameState? = null
     private var retired = false
     private var game = false
     private var matched = false
@@ -74,6 +76,7 @@ internal class GosPerformanceHook(private val module: XposedModule) {
         synchronized(stateLock) {
             if (retired || this.context != null) return
             this.context = context.applicationContext ?: context
+            gameState = SamsungGameState(this.context ?: context)
             game = saved?.getBoolean(GpuPerformanceSettings.KEY_GAME) == true
             saved?.getParcelableArrayList("requests", Bundle::class.java)?.forEach { entry ->
                 val binder = entry.getBinder("binder") ?: return@forEach
@@ -141,21 +144,27 @@ internal class GosPerformanceHook(private val module: XposedModule) {
         val owner = synchronized(stateLock) { if (retired) null else context } ?: return
         val snapshot = runCatching { GpuPerformanceSettings.readRemote(owner) }.getOrNull()
         val bypassRequested = snapshot?.getBoolean(GpuPerformanceSettings.KEY_BYPASS) == true
-        val targetRequested = snapshot?.getInt(GpuPerformanceSettings.KEY_MODE, 0) != 0 && snapshot != null
-        val interactive = owner.getSystemService(PowerManager::class.java)?.isInteractive == true
-        val configured = bypassRequested || targetRequested
+        val foreground = gameState?.isActive() == true
         val active = synchronized(stateLock) {
             if (retired) return
-            setBypass(game && interactive && bypassRequested)
+            if (game && !foreground) requests.clear()
+            game = foreground
+            setBypass(game && bypassRequested)
             Bundle().apply {
-                putBoolean(GpuPerformanceSettings.KEY_GAME, game && interactive && configured)
+                putBinder(GpuPerformanceSettings.KEY_GOS_TOKEN, connection)
+                putBoolean(GpuPerformanceSettings.KEY_GAME, game)
                 putBoolean(GpuPerformanceSettings.KEY_MATCHED, matched && bypass)
+                if (game) requests.values.mapNotNull { it.ceiling }.minOrNull()?.let {
+                    putInt(GpuPerformanceSettings.KEY_GOS_MAX_MHZ, it)
+                }
             }
         }
         runCatching {
-            owner.contentResolver.call(GpuPerformanceSettings.uri, GpuPerformanceSettings.SESSION, null, active)
+            owner.contentResolver.call(GpuPerformanceSettings.uri, GpuPerformanceSettings.GOS_SESSION, null, active)
+        }.onFailure {
+            if (snapshot != null) Log.w(TAG, "Could not report the GOS session", it)
         }
-        if (synchronized(stateLock) { game && !retired && (configured || snapshot == null) }) {
+        if (synchronized(stateLock) { !retired && (game || snapshot == null) }) {
             main.postDelayed(retry, 2_000L)
         }
     }
@@ -180,17 +189,21 @@ internal class GosPerformanceHook(private val module: XposedModule) {
         val data = chain.args[1] as? Parcel ?: return chain.proceed()
         val request = decode(binder, data, acquire = code == acquireCode) ?: return chain.proceed()
         synchronized(stateLock) {
-            if (retired || !game) return chain.proceed()
+            if (retired) return chain.proceed()
             if (request.resources == null) {
                 requests.remove(request.token)
                 return chain.proceed()
             }
-            if (!request.hasGpuMax) {
+            if (request.ceiling == null) {
                 requests.remove(request.token)
                 return chain.proceed()
             }
-            if (requests.size < 32 || requests.containsKey(request.token)) requests[request.token] = request
-            if (!bypass) return chain.proceed()
+            if (requests.size < 32 || requests.containsKey(request.token)) {
+                val first = requests.isEmpty()
+                requests[request.token] = request
+                if (first) main.post(retry)
+            }
+            if (!game || !bypass) return chain.proceed()
             if (!runCatching { send(request, true) }.getOrDefault(false)) return chain.proceed()
             reportBypassed()
             return true
@@ -254,7 +267,9 @@ internal class GosPerformanceHook(private val module: XposedModule) {
     }
 
     private data class FrequencyRequest(val binder: IBinder, val token: Int, val tag: String?, val hint: Int, val resources: IntArray?) {
-        val hasGpuMax get() = resources?.indices?.step(2)?.any { resources[it] == GPU_MAX } == true
+        val ceiling = resources?.indices?.step(2)?.mapNotNull { index ->
+            if (resources[index] == GPU_MAX) GpuHardwareReadings.toMhz(resources[index + 1].toLong()) else null
+        }?.minOrNull()
     }
 
     companion object {
