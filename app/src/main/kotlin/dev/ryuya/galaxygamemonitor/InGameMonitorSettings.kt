@@ -66,8 +66,8 @@ internal class InGameMonitorSettings {
         private val settingsView: View,
         private val scroll: ScrollView,
         private val stockContent: View,
-        stockCard: View,
-        stockLabel: TextView,
+        private val stockCard: View,
+        private val stockLabel: TextView,
         private val strings: Resources,
     ) {
         private val stockParams = stockContent.layoutParams
@@ -77,6 +77,7 @@ internal class InGameMonitorSettings {
         }
         private val context = ContextThemeWrapper(scroll.context, android.R.style.Theme_Material)
         private val settingsLabel = strings.getString(R.string.monitor_in_game_action)
+        private val gpuLabel = strings.getString(R.string.gpu_performance_heading)
         private val headerLabel = strings.getString(R.string.monitor_items_heading)
         private val wrapper = object : LinearLayout(context) {
             override fun onVisibilityAggregated(isVisible: Boolean) {
@@ -84,47 +85,24 @@ internal class InGameMonitorSettings {
                 if (!isVisible && editor.visibility == View.VISIBLE) post { if (!isShown) showStock() }
             }
         }.apply { orientation = LinearLayout.VERTICAL }
-        private val card = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            background = stockCard.background?.constantState?.newDrawable(stockCard.resources)?.mutate()
-            backgroundTintList = stockCard.backgroundTintList
-        }
         private val editor = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             visibility = View.GONE
         }
-        private val entryArrow = context.getDrawable(android.R.drawable.arrow_down_float)?.mutate()?.apply {
-            setTintList(stockLabel.textColors)
-        }
+        private var pageEntry: TextView? = null
         private var goBack: (() -> Unit)? = null
-        private val openButton = TextView(context).apply {
-            text = settingsLabel
-            textSize = 14f
-            typeface = stockLabel.typeface
-            setTextColor(stockLabel.textColors)
-            gravity = Gravity.CENTER_VERTICAL
-            minHeight = dp(48)
-            setPaddingRelative(dp(18), 0, dp(18), 0)
-            compoundDrawablePadding = dp(12)
-            setCompoundDrawablesRelativeWithIntrinsicBounds(null, null, entryArrow, null)
-            val selectable = TypedValue()
-            if (context.theme.resolveAttribute(android.R.attr.selectableItemBackground, selectable, true)) {
-                background = context.getDrawable(selectable.resourceId)
-            }
-            isFocusable = true
-            setOnClickListener {
-                val back = goBack
-                if (back == null) openSettings() else back()
-            }
-        }
+        private val monitorEntry = entry(settingsLabel, ::openSettings)
+        private val gpuEntry = entry(gpuLabel, ::openGpuSettings)
+        private val monitorCard = card(monitorEntry)
+        private val gpuCard = card(gpuEntry)
         private var stockScrollY = 0
 
         fun attach() {
-            card.addView(openButton)
-            card.addView(editor)
             scroll.removeView(stockContent)
             wrapper.addView(stockContent, LinearLayout.LayoutParams(MATCH, WRAP))
-            wrapper.addView(card, LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(5) })
+            for (card in listOf(monitorCard, gpuCard)) {
+                wrapper.addView(card, LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(5) })
+            }
             scroll.addView(wrapper, stockParams)
         }
 
@@ -136,18 +114,69 @@ internal class InGameMonitorSettings {
             scroll.addView(stockContent, stockParams)
         }
 
-        private fun openSettings() {
+        private fun card(entry: TextView) = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            background = stockCard.background?.constantState?.newDrawable(stockCard.resources)?.mutate()
+            backgroundTintList = stockCard.backgroundTintList
+            addView(entry)
+        }
+
+        private fun entry(label: String, open: (TextView) -> Unit) = TextView(context).apply {
+            textSize = 14f
+            typeface = stockLabel.typeface
+            setTextColor(stockLabel.textColors)
+            gravity = Gravity.CENTER_VERTICAL
+            minHeight = dp(48)
+            setPaddingRelative(dp(18), 0, dp(18), 0)
+            compoundDrawablePadding = dp(12)
+            resetEntry(this, label)
+            val selectable = TypedValue()
+            if (context.theme.resolveAttribute(android.R.attr.selectableItemBackground, selectable, true)) {
+                background = context.getDrawable(selectable.resourceId)
+            }
+            isFocusable = true
+            setOnClickListener {
+                val back = goBack
+                if (pageEntry === this && back != null) back() else open(this)
+            }
+        }
+
+        private fun resetEntry(entry: TextView, label: String) {
+            val arrow = context.getDrawable(android.R.drawable.arrow_down_float)?.mutate()?.apply {
+                setTintList(stockLabel.textColors)
+            }
+            entry.text = label
+            entry.contentDescription = null
+            entry.setCompoundDrawablesRelativeWithIntrinsicBounds(null, null, arrow, null)
+        }
+
+        private fun openSettings(entry: TextView) {
             val content = runCatching {
                 val settings = checkNotNull(DisplaySettings.readRemote(scroll.context))
                 MonitorSettingsContent.create(context, strings, settings, ::save, ::showOrder)
             }.onFailure { unavailable("Unable to open in-game monitor settings", it) }.getOrNull() ?: return
 
+            openPage(monitorCard, entry, headerLabel, content)
+        }
+
+        private fun openGpuSettings(entry: TextView) {
+            val controls = GpuPerformanceControls(context, strings, showHeading = false).apply {
+                setPaddingRelative(dp(24), dp(12), dp(24), dp(8))
+            }
+            openPage(gpuCard, entry, gpuLabel, controls)
+        }
+
+        private fun openPage(card: LinearLayout, entry: TextView, title: String, content: View) {
             stockScrollY = scroll.scrollY
             stockContent.visibility = View.GONE
+            monitorCard.visibility = if (card === monitorCard) View.VISIBLE else View.GONE
+            gpuCard.visibility = if (card === gpuCard) View.VISIBLE else View.GONE
+            pageEntry = entry
+            card.addView(editor)
             editor.visibility = View.VISIBLE
             settingsView.addOnLayoutChangeListener(resizeEditor)
             fitEditorInPanel()
-            showPage(headerLabel, content, ::showStock)
+            showPage(title, content, ::showStock)
         }
 
         private fun fitEditorInPanel() {
@@ -161,10 +190,11 @@ internal class InGameMonitorSettings {
         }
 
         private fun showPage(title: String, content: View, back: () -> Unit) {
+            val entry = checkNotNull(pageEntry)
             goBack = back
-            openButton.text = "‹  $title"
-            openButton.contentDescription = strings.getString(R.string.monitor_in_game_back, title)
-            openButton.setCompoundDrawablesRelativeWithIntrinsicBounds(null, null, null, null)
+            entry.text = "‹  $title"
+            entry.contentDescription = strings.getString(R.string.monitor_in_game_back, title)
+            entry.setCompoundDrawablesRelativeWithIntrinsicBounds(null, null, null, null)
             editor.removeAllViews()
             editor.addView(content, LinearLayout.LayoutParams(MATCH, WRAP))
             scroll.scrollTo(0, 0)
@@ -191,11 +221,14 @@ internal class InGameMonitorSettings {
             scroll.layoutParams = scroll.layoutParams.apply { height = stockScrollHeight }
             editor.visibility = View.GONE
             editor.removeAllViews()
+            (editor.parent as? ViewGroup)?.removeView(editor)
             stockContent.visibility = View.VISIBLE
+            monitorCard.visibility = View.VISIBLE
+            gpuCard.visibility = View.VISIBLE
+            pageEntry = null
             goBack = null
-            openButton.text = settingsLabel
-            openButton.contentDescription = null
-            openButton.setCompoundDrawablesRelativeWithIntrinsicBounds(null, null, entryArrow, null)
+            resetEntry(monitorEntry, settingsLabel)
+            resetEntry(gpuEntry, gpuLabel)
             scroll.post { if (editor.visibility != View.VISIBLE) scroll.scrollTo(0, stockScrollY) }
         }
 

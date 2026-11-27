@@ -81,7 +81,6 @@ internal object MonitorSettingsContent {
         content.addView(makeSwitch(context, strings.getString(R.string.gpu_peak_relative_toggle), config.gpuPeakRelative) { enabled ->
             save(Bundle().apply { putBoolean(DisplaySettings.KEY_GPU_PEAK_RELATIVE, enabled) })
         })
-        content.addView(GpuPerformanceControls(context, strings))
         return content
     }
 

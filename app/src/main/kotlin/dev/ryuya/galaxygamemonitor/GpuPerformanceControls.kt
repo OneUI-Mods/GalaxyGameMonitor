@@ -15,7 +15,11 @@ import android.widget.TextView
 import dev.ryuya.galaxygamemonitor.GpuPerformanceSettings.Mode
 import dev.ryuya.galaxygamemonitor.GpuPerformanceSettings.Status
 
-internal class GpuPerformanceControls(context: Context, private val strings: Resources) : LinearLayout(context) {
+internal class GpuPerformanceControls(
+    context: Context,
+    private val strings: Resources,
+    showHeading: Boolean = true,
+) : LinearLayout(context) {
     private val bypass = Switch(context).apply { text = strings.getString(R.string.gos_gpu_max_bypass) }
     private val gosStatus = TextView(context)
     private val modes = RadioGroup(context).apply { orientation = VERTICAL }
@@ -36,10 +40,12 @@ internal class GpuPerformanceControls(context: Context, private val strings: Res
     init {
         orientation = VERTICAL
         val spacing = (16 * resources.displayMetrics.density).toInt()
-        addView(TextView(context).apply {
-            setPaddingRelative(0, spacing, 0, 0)
-            text = strings.getString(R.string.gpu_performance_heading)
-        })
+        if (showHeading) {
+            addView(TextView(context).apply {
+                setPaddingRelative(0, spacing, 0, 0)
+                text = strings.getString(R.string.gpu_performance_heading)
+            })
+        }
         addView(bypass)
         addView(gosStatus)
         addView(TextView(context).apply {

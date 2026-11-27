@@ -81,6 +81,7 @@ internal class GameBoosterMonitorSettings(private val toolbarClass: Class<*>) {
                 panel.setOnDismissListener { if (orderDialog === panel) orderDialog = null }
             }
         }
+        content.addView(GpuPerformanceControls(screen, resources))
         val scroll = ScrollView(screen).apply { addView(content) }
         dialog = AlertDialog.Builder(screen)
             .setTitle(resources.getString(R.string.monitor_items_heading))
