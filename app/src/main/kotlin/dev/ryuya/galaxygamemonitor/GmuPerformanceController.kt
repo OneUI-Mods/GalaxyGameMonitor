@@ -170,7 +170,7 @@ private class GmuRootSession(private val process: Process) : Closeable {
             session.close()
             val status = when (reply) {
                 "unsupported" -> Status.UNSUPPORTED
-                "busy" -> Status.WAITING
+                "busy" -> Status.BUSY
                 else -> Status.ROOT_REQUIRED
             }
             return null to status
@@ -185,7 +185,8 @@ private class GmuRootSession(private val process: Process) : Closeable {
             reset_count='$KGSL/reset_count'
             [ -r "${'$'}current" ] && [ -w "${'$'}target" ] || { echo unsupported; exit 2; }
             exec 3< "${'$'}target" || exit 2
-            /system/bin/flock -n 3 || { echo busy; exit 3; }
+            # mksh keeps this descriptor open in the parent and closes it on exec unless redirected.
+            /system/bin/flock -n 3 3<&3 || { echo busy; exit 3; }
             read -r original < "${'$'}target" || exit 2
             case "${'$'}original" in
                 -1) ;;

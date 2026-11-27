@@ -49,6 +49,7 @@
     <string name="gmu_120">120 FPS</string>
     <string name="gmu_effective">Effective GMU target: %1$d FPS</string>
     <string name="gmu_waiting">Waiting for the GPU firmware to apply the target</string>
+    <string name="gmu_busy">Waiting for another GMU session to finish</string>
     <string name="gmu_root_required">Grant Galaxy Game Monitor root access to apply the target</string>
     <string name="gmu_unsupported">GMU target control is unavailable on this device</string>
     <string name="gmu_failed">Could not apply the GMU target</string>

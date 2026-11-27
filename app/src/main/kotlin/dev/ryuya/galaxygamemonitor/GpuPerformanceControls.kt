@@ -168,6 +168,7 @@ internal class GpuPerformanceControls(
             gmuStatus.text = when (status) {
                 Status.ACTIVE -> ""
                 Status.WAITING -> strings.getString(R.string.gmu_waiting)
+                Status.BUSY -> strings.getString(R.string.gmu_busy)
                 Status.ROOT_REQUIRED -> strings.getString(R.string.gmu_root_required)
                 Status.UNSUPPORTED -> strings.getString(R.string.gmu_unsupported)
                 Status.FAILED -> strings.getString(R.string.gmu_failed)

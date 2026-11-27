@@ -49,6 +49,7 @@
     <string name="gmu_120">120 FPS</string>
     <string name="gmu_effective">GMUの実効目標 %1$d FPS</string>
     <string name="gmu_waiting">GPUファームウェアへの反映を待機中</string>
+    <string name="gmu_busy">別のGMUセッションが終了するまで待機中</string>
     <string name="gmu_root_required">適用にはGalaxy Game Monitorのroot権限が必要です</string>
     <string name="gmu_unsupported">この端末はGMU目標の切り替えに対応していません</string>
     <string name="gmu_failed">GMUの目標を適用できませんでした</string>

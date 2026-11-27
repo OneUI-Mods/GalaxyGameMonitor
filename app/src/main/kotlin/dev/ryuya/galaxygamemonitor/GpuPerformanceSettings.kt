@@ -31,7 +31,7 @@ internal object GpuPerformanceSettings {
         FPS_120(120, R.string.gmu_120),
     }
 
-    enum class Status { IDLE, WAITING, ACTIVE, ROOT_REQUIRED, UNSUPPORTED, FAILED }
+    enum class Status { IDLE, WAITING, ACTIVE, ROOT_REQUIRED, UNSUPPORTED, FAILED, BUSY }
 
     data class Config(val bypass: Boolean, val mode: Mode)
 
