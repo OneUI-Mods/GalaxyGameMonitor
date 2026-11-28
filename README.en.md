@@ -2,34 +2,48 @@
 
 # Galaxy Game Monitor
 
-Installation requires Android 17 (API 37) or later.
+Show measured CPU and GPU usage and per-game memory in Samsung Game Booster, and configure GPU performance.
 
-Show CPU and GPU usage measured by the kernel in Game Booster’s system monitor. GPU support includes Adreno and the Xclipse and Mali GPUs used on Exynos devices.
+[Download the latest release](https://github.com/OneUI-Mods/GalaxyGameMonitor/releases/latest)
 
-On devices that expose the current GPU clock, the overlay shows it in MHz next to GPU usage.
+## Install
 
-Turn on **Show GPU relative to peak clock** to show an estimate in the `GPU %` field based on driver utilization multiplied by operating frequency divided by the GPU’s peak frequency. It uses per-frequency busy times on supported Adreno devices and the sampled clock elsewhere. When conversion is unavailable, the overlay shows the standard `GPU %`.
+1. Install the signed APK from the release page on a Galaxy running Android 17 or later.
+2. Enable the module in Vector or another framework that supports libxposed API 102.
+3. Select the scope for each feature you want to use. The module first loads in each scoped app the next time its process starts.
 
-Use **System monitor items** to show or hide FPS, CPU usage, GPU usage, GPU clock, system RAM usage, game RAM, battery level, and battery temperature individually. Battery temperature is shown in degrees Celsius to one decimal place.
+| Feature | Vector scope |
+| --- | --- |
+| System monitor and in-game settings | **Game Booster** |
+| Read and bypass the GOS GPU cap | **Game Optimizing Service** |
+| SDHMS GPU temperature control and requested ceiling | **Samsung Device Health Manager** (Galaxy S26 Ultra on BZI9) |
 
-Game RAM shows the resident proportional set size (PSS) of the foreground game’s processes in GiB. It uses Android’s detailed memory measurement, including graphics memory attributed to the game. Grant root access to Galaxy Game Monitor to enable this metric. It shows “—” when unavailable.
+- Vector can hot-update apps where the module is already loaded.
+- To restart Game Booster on its own, select **Reload Game Booster** in Galaxy Game Monitor (requires root).
 
-Choose 1 to 8 items per row. The default is 4. Use **Reorder items** to move metrics up or down. During a game, open **Game Booster settings → System monitor** in the side panel to edit the same settings. In the full Game Booster settings screen, tap **Monitor** at the top.
+## Open settings
 
-Turn off **Show in screenshots and screen recordings** to exclude the monitor from captured output while it remains visible on the device. The setting is on by default.
+| Where | How |
+| --- | --- |
+| Galaxy Game Monitor app | Edit the monitor layout or tap **GPU performance** |
+| In a game | **Game Booster settings → System monitor** or **GPU performance** |
+| Full Game Booster settings | Tap **Monitor** at the top |
 
-Enable the module in Vector or another framework with libxposed API 102 and reload Game Booster. Launch a game and open **System monitor** in Game Booster.
+## System monitor
 
-The default CPU display shows the share of time the CPU was busy. Enable **Show CPU load relative to peak clock** for an estimate relative to peak capacity.
+- Choose which metrics to show. Available metrics include FPS, CPU and GPU usage, GPU clock, system and game memory, and battery level and temperature. GPU support includes Adreno, Xclipse, and Mali. Available readings vary by device.
+- Reorder items and choose 1–8 items per row (four by default). CPU and GPU usage can also be shown relative to peak clock speed.
+- Turn off **Show in screenshots and screen recordings** to keep the monitor visible on the device and hide it from captures.
+- Game memory (PSS, in GiB) requires root access for Galaxy Game Monitor.
 
-After updating the module, choose **Reload Game Booster**, then return to your game. This button requires root access for Galaxy Game Monitor.
+## GPU performance
 
-Each metric keeps Game Booster’s standard value when the device cannot supply the required telemetry.
+| Setting or reading | What it does |
+| --- | --- |
+| **Bypass GOS GPU clock cap** | Filters GOS GPU ceiling requests during games. |
+| **Keep SDHMS GPU temperature control in games** | Turns on when you enable GOS bypass. You can turn it off manually. Restoring the GOS cap also turns this setting off. |
+| **GPU ceilings** | Shows the GOS and SDHMS requests and the effective GPU ceiling separately. |
+| **GMU target FPS** | On supported Adreno devices, choose System default, 60 FPS, or 120 FPS. Changing the target requires root access. |
 
-### GPU performance
-
-Open **GPU performance** in Galaxy Game Monitor or in **Game Booster settings** during a game. On the full Game Booster settings screen, open **Monitor**. Enable **Bypass GOS GPU clock cap** to filter Samsung Game Optimizing Service’s GPU ceiling requests during a game. On compatible Adreno devices, choose **System default**, **60 FPS**, or **120 FPS** for the GMU target. The GMU reads the target as an input to GPU clock selection, and the panel shows the effective value.
-
-Enable **Game Optimizing Service** in the module’s Vector scope. On first use after adding this scope, GOS must start a new process so Vector can load the module into it. Grant Galaxy Game Monitor root access for the GMU target control.
-
-**Keep SDHMS GPU temperature control in games** keeps Samsung’s GPU temperature policy available during games on BZI9 Galaxy S26 Ultra. Turning on the GOS cap bypass also enables this option, which you can then turn off independently. Restoring the GOS cap turns off this option. The settings show the GPU ceiling currently requested by SDHMS. Its GPU request expires after 30 seconds and renews while SDHMS holds the ceiling. With root access, Galaxy Game Monitor checks for orphaned GPU requests when SDHMS connects and clears any matching requests. Add **Samsung Device Health Manager** to the Vector scope. The first scope change takes effect the next time SDHMS starts.
+- SDHMS renews its GPU request while it holds the ceiling. The request expires 30 seconds after the last renewal.
+- With root access, Galaxy Game Monitor checks for and clears ceilings left by previous SDHMS processes when SDHMS connects.
