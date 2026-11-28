@@ -10,6 +10,7 @@ import android.database.Cursor
 import android.net.Uri
 import android.os.Binder
 import android.os.Bundle
+import android.os.RemoteException
 import android.os.SystemClock
 import android.util.Log
 
@@ -124,16 +125,25 @@ internal object DisplaySettings {
         return (saved + MonitorItem.entries).distinct()
     }
 
+    // A settings APK update can kill the provider between acquisition and the reply.
+    // An unstable client lets the caller survive and reconnect on its next sync.
+    fun callRemote(resolver: ContentResolver, method: String, extras: Bundle? = null): Bundle? =
+        try {
+            resolver.acquireUnstableContentProviderClient(uri)?.use { it.call(method, null, extras) }
+        } catch (_: RemoteException) {
+            null
+        }
+
     fun readRemote(context: Context): MonitorSettings? =
-        context.contentResolver.call(uri, READ, null, null)?.let(::fromBundle)
+        callRemote(context.contentResolver, READ)?.let(::fromBundle)
 
     fun updateRemote(context: Context, changes: Bundle) {
-        checkNotNull(context.contentResolver.call(uri, UPDATE, null, changes))
+        checkNotNull(callRemote(context.contentResolver, UPDATE, changes))
     }
 
     fun readGameMemory(context: Context, pids: IntArray): Long? {
         val args = Bundle().apply { putIntArray(KEY_GAME_PIDS, pids) }
-        return context.contentResolver.call(uri, READ_GAME_MEMORY, null, args)
+        return callRemote(context.contentResolver, READ_GAME_MEMORY, args)
             ?.getLong(KEY_GAME_RESIDENT_PSS)?.takeIf { it > 0L }
     }
 
@@ -186,22 +196,22 @@ class DisplaySettingsProvider : ContentProvider() {
             GpuPerformanceSettings.SDHMS_REFRESH -> {
                 if (!ownApp && caller != DisplaySettings.GAME_BOOSTER) throw SecurityException()
                 GpuPerformanceSettings.refreshSdhms(owner)
-                return Bundle.EMPTY
+                return GpuPerformanceSettings.snapshot(owner)
             }
             GpuPerformanceSettings.GOS_SESSION -> {
                 if (caller != GpuPerformanceSettings.GOS) throw SecurityException()
                 GpuPerformanceSettings.reportGos(owner, requireNotNull(extras))
-                return Bundle.EMPTY
+                return GpuPerformanceSettings.gosConfig(owner)
             }
             GpuPerformanceSettings.BOOSTER_SESSION -> {
                 if (caller != DisplaySettings.GAME_BOOSTER) throw SecurityException()
                 val config = GpuPerformanceSettings.read(owner)
                 GmuPerformanceController.report(
                     owner,
-                    extras?.getBoolean(GpuPerformanceSettings.KEY_GAME) == true,
+                    config.mode.fps != null && extras?.getBoolean(GpuPerformanceSettings.KEY_GAME) == true,
                     config.mode.fps,
                 )
-                return Bundle.EMPTY
+                return Bundle().apply { putInt(GpuPerformanceSettings.KEY_MODE, config.mode.ordinal) }
             }
         }
         if (caller != DisplaySettings.GAME_BOOSTER) {
@@ -335,7 +345,7 @@ internal class GameBoosterDisplaySettings(
                 resolver.registerContentObserver(DisplaySettings.uri, false, observer)
                 observing = true
             }
-            resolver.call(DisplaySettings.uri, DisplaySettings.READ, null, null)?.let(DisplaySettings::fromBundle)
+            DisplaySettings.callRemote(resolver, DisplaySettings.READ)?.let(DisplaySettings::fromBundle)
         } catch (error: RuntimeException) {
             Log.w("GalaxyGameMonitor", "Display settings unavailable: ${error.javaClass.simpleName}")
             null

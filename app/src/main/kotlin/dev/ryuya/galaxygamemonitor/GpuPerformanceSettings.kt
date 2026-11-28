@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
+import android.os.Binder
 import android.os.Bundle
 import android.os.IBinder
 import android.util.Log
@@ -34,6 +35,7 @@ internal object GpuPerformanceSettings {
     const val KEY_EFFECTIVE = "gmu_effective_fps"
     const val KEY_GOS_CONNECTED = "gos_connected"
     const val KEY_GOS_TOKEN = "gos_token"
+    const val KEY_PROVIDER_TOKEN = "gpu_provider_token"
     const val KEY_GOS_MAX_MHZ = "gos_max_mhz"
     val uri: Uri = Uri.withAppendedPath(DisplaySettings.uri, "gpu_performance")
     val sdhmsRefreshUri: Uri = Uri.withAppendedPath(DisplaySettings.uri, "sdhms_session")
@@ -59,6 +61,7 @@ internal object GpuPerformanceSettings {
     @Volatile private var cleanup: Cleanup? = null
     @Volatile private var sdhmsState: SdhmsState? = null
     private var sdhmsDeath: IBinder.DeathRecipient? = null
+    private val providerToken by lazy { Binder() }
 
     @Synchronized
     fun reportSdhms(context: Context, pid: Int, report: Bundle) {
@@ -149,6 +152,11 @@ internal object GpuPerformanceSettings {
         Config(bypass, mode, bypass && it.getBoolean(KEY_SDHMS, true))
     }
 
+    fun gosConfig(context: Context): Bundle = Bundle().apply {
+        putBoolean(KEY_BYPASS, read(context).bypass)
+        putBinder(KEY_PROVIDER_TOKEN, providerToken)
+    }
+
     fun sdhmsConfig(context: Context): Bundle = Bundle().apply {
         putBoolean(KEY_SDHMS, read(context).sdhms)
     }
@@ -196,15 +204,21 @@ internal object GpuPerformanceSettings {
         }
     }
 
-    fun readRemote(context: Context): Bundle =
-        checkNotNull(context.contentResolver.call(uri, READ, null, null))
+    fun readRemote(context: Context, refreshSdhms: Boolean = false): Bundle {
+        val resolver = context.contentResolver
+        if (refreshSdhms) {
+            val snapshot = runCatching { DisplaySettings.callRemote(resolver, SDHMS_REFRESH) }.getOrNull()
+            if (snapshot?.containsKey(KEY_MODE) == true) return snapshot
+        }
+        return checkNotNull(DisplaySettings.callRemote(resolver, READ))
+    }
 
     fun updateRemote(context: Context, changes: Bundle): Bundle =
-        checkNotNull(context.contentResolver.call(uri, UPDATE, null, changes))
+        checkNotNull(DisplaySettings.callRemote(context.contentResolver, UPDATE, changes))
 
     fun refreshSdhms(context: Context) {
         checkOrphanedSdhmsRequests(context, retry = true)
-        notifyChange(context, sdhmsRefreshUri)
+        if (sdhmsState?.token?.isBinderAlive != true) notifyChange(context, sdhmsRefreshUri)
     }
 
     fun notifyRuntimeChange(context: Context) = notifyChange(context, runtimeUri)

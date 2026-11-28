@@ -167,7 +167,7 @@ internal class SdhmsGpuThermalHook(private val module: XposedModule, private val
         val owner = context ?: return
         if (retired) return
         runCatching {
-            val settings = owner.contentResolver.call(GpuPerformanceSettings.uri, GpuPerformanceSettings.SDHMS_CONFIG, null, null)
+            val settings = DisplaySettings.callRemote(owner.contentResolver, GpuPerformanceSettings.SDHMS_CONFIG)
                 ?: return
             val requested = settings.getBoolean(GpuPerformanceSettings.KEY_SDHMS)
             val nativeManager = manager.invoke(null)
@@ -216,7 +216,7 @@ internal class SdhmsGpuThermalHook(private val module: XposedModule, private val
         val owner = context ?: return
         if (retired) return
         runCatching {
-            val result = owner.contentResolver.call(GpuPerformanceSettings.uri, GpuPerformanceSettings.SDHMS_SESSION, null,
+            val result = DisplaySettings.callRemote(owner.contentResolver, GpuPerformanceSettings.SDHMS_SESSION,
                 Bundle().apply {
                     putBinder(GpuPerformanceSettings.KEY_SDHMS_TOKEN, token)
                     putInt(GpuPerformanceSettings.KEY_SDHMS_MAX_MHZ, ceiling)

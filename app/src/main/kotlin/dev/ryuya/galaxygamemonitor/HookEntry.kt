@@ -28,7 +28,7 @@ class HookEntry : XposedModule() {
     @Volatile private var hostLoader: ClassLoader? = null
     private var hostContext: Context? = null
     private var connectedProxy: Class<*>? = null
-    private var monitorOverlay: MonitorOverlay? = null
+    @Volatile private var monitorOverlay: MonitorOverlay? = null
     private var monitorSettingsEntry: GameBoosterMonitorSettings? = null
     private var gameMemory: GameMemory? = null
     private val monitorCapture = MonitorCapture()
@@ -175,8 +175,11 @@ class HookEntry : XposedModule() {
                 val view = chain.args.firstOrNull() as? View
                 if (!retired && view != null) {
                     when (params?.title?.toString()) {
-                        "GameBooster PerformanceMonitor" -> runCatching { monitorCapture.onWindowAdded(view) }
-                            .onFailure { Log.w(TAG, "Could not initialize monitor capture policy", it) }
+                        "GameBooster PerformanceMonitor" -> {
+                            monitorOverlay?.onWindowAdded(view)
+                            runCatching { monitorCapture.onWindowAdded(view) }
+                                .onFailure { Log.w(TAG, "Could not initialize monitor capture policy", it) }
+                        }
                         InGameMonitorSettings.WINDOW_TITLE -> {
                             boosterGameSession.attach(view.context)
                             inGameSettings.onWindowAdded(view)

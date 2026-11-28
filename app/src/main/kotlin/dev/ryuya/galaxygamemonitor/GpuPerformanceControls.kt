@@ -48,8 +48,16 @@ internal class GpuPerformanceControls(
             modes.addView(this)
         }
     }
-    private val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
-        override fun onChange(selfChange: Boolean) = refresh()
+    private val main = Handler(Looper.getMainLooper())
+    private var refreshPending = false
+    private val refreshView = Runnable {
+        refreshPending = false
+        if (observing) refresh()
+    }
+    private val observer = object : ContentObserver(main) {
+        override fun onChange(selfChange: Boolean) {
+            if (observing && !refreshPending) refreshPending = main.post(refreshView)
+        }
     }
 
     init {
@@ -93,18 +101,15 @@ internal class GpuPerformanceControls(
         observing = runCatching {
             context.contentResolver.registerContentObserver(GpuPerformanceSettings.uri, true, observer)
         }.isSuccess
-        refresh()
-        if (SdhmsGpuThermalHook.supportsDevice()) {
-            runCatching {
-                context.contentResolver.call(GpuPerformanceSettings.uri, GpuPerformanceSettings.SDHMS_REFRESH, null, null)
-            }
-        }
+        refresh(refreshSdhms = SdhmsGpuThermalHook.supportsDevice())
         startReadings()
     }
 
     override fun onDetachedFromWindow() {
         if (observing) context.contentResolver.unregisterContentObserver(observer)
         observing = false
+        main.removeCallbacks(refreshView)
+        refreshPending = false
         workerThread?.quitSafely()
         workerThread = null
         super.onDetachedFromWindow()
@@ -114,24 +119,36 @@ internal class GpuPerformanceControls(
         val thread = HandlerThread("GameMonitorGpuSettings", Process.THREAD_PRIORITY_BACKGROUND).apply { start() }
         workerThread = thread
         val worker = Handler(thread.looper)
+        var lastCeiling: GpuHardwareReadings.Ceiling? = null
         var lastGmuSample: Long? = null
+        var lastGmuFps: Int? = null
+        var first = true
         val sample = object : Runnable {
             override fun run() {
                 val ceiling = GpuHardwareReadings.ceiling()
                 val now = SystemClock.elapsedRealtime()
                 val readGmu = lastGmuSample?.let { now - it >= 12_000L } != false
                 val gmuFps = if (readGmu) GpuHardwareReadings.effectiveGmuFps() else null
-                if (readGmu) lastGmuSample = now
-                post {
-                    if (workerThread !== thread) return@post
-                    actualCeiling.text = when {
-                        ceiling == null -> strings.getString(R.string.gpu_ceiling_unavailable)
-                        ceiling.aggregated -> strings.getString(R.string.gpu_ceiling_actual, ceiling.mhz)
-                        else -> strings.getString(R.string.gpu_ceiling_shared, ceiling.mhz)
-                    }
-                    if (readGmu) {
-                        hardwareGmuFps = gmuFps
-                        renderGmuCurrent()
+                val ceilingChanged = first || lastCeiling != ceiling
+                val gmuChanged = readGmu && (first || lastGmuFps != gmuFps)
+                if (readGmu) {
+                    lastGmuSample = now
+                    lastGmuFps = gmuFps
+                }
+                lastCeiling = ceiling
+                first = false
+                if (ceilingChanged || gmuChanged) {
+                    post {
+                        if (workerThread !== thread) return@post
+                        if (ceilingChanged) actualCeiling.text = when {
+                            ceiling == null -> strings.getString(R.string.gpu_ceiling_unavailable)
+                            ceiling.aggregated -> strings.getString(R.string.gpu_ceiling_actual, ceiling.mhz)
+                            else -> strings.getString(R.string.gpu_ceiling_shared, ceiling.mhz)
+                        }
+                        if (gmuChanged) {
+                            hardwareGmuFps = gmuFps
+                            renderGmuCurrent()
+                        }
                     }
                 }
                 worker.postDelayed(this, 2_000L)
@@ -146,7 +163,8 @@ internal class GpuPerformanceControls(
             else strings.getString(R.string.gmu_effective, fps)
     }
 
-    private fun refresh() = render(runCatching { GpuPerformanceSettings.readRemote(context) }.getOrNull())
+    private fun refresh(refreshSdhms: Boolean = false) =
+        render(runCatching { GpuPerformanceSettings.readRemote(context, refreshSdhms) }.getOrNull())
 
     private fun update(changes: Bundle) =
         render(runCatching { GpuPerformanceSettings.updateRemote(context, changes) }.getOrNull())

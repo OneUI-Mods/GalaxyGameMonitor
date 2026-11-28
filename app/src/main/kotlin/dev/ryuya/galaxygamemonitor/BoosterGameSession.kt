@@ -73,16 +73,28 @@ internal class BoosterGameSession {
         handler.removeCallbacks(poll)
         val app = context ?: return
         if (retired) return
-        val config = runCatching { GpuPerformanceSettings.readRemote(app) }.getOrNull()
-        val selected = config?.let { it.getInt(GpuPerformanceSettings.KEY_MODE) != 0 }
-        if (selected == true || controllingGmu) {
-            val active = selected == true && gameState?.isActive() == true
-            val args = Bundle().apply { putBoolean(GpuPerformanceSettings.KEY_GAME, active) }
-            runCatching {
-                app.contentResolver.call(GpuPerformanceSettings.uri, GpuPerformanceSettings.BOOSTER_SESSION, null, args)
+        if (controllingGmu || readsSelectedMode(app) == true) {
+            val active = gameState?.isActive() == true
+            val reply = report(app, active)
+            controllingGmu = if (reply?.containsKey(GpuPerformanceSettings.KEY_MODE) == true) {
+                reply.getInt(GpuPerformanceSettings.KEY_MODE) != GpuPerformanceSettings.Mode.SYSTEM.ordinal
+            } else {
+                // Earlier providers return no mode. Keep the regular heartbeat after an IPC failure.
+                val selected = if (reply != null) readsSelectedMode(app) else null
+                if (selected == false && active) report(app, false)
+                selected ?: true
             }
-            controllingGmu = selected ?: controllingGmu
         }
         if (controllingGmu) handler.postDelayed(poll, 2_000L)
     }
+
+    private fun readsSelectedMode(app: Context): Boolean? = runCatching {
+        GpuPerformanceSettings.readRemote(app).getInt(GpuPerformanceSettings.KEY_MODE) !=
+            GpuPerformanceSettings.Mode.SYSTEM.ordinal
+    }.getOrNull()
+
+    private fun report(app: Context, active: Boolean): Bundle? = runCatching {
+        val args = Bundle().apply { putBoolean(GpuPerformanceSettings.KEY_GAME, active) }
+        DisplaySettings.callRemote(app.contentResolver, GpuPerformanceSettings.BOOSTER_SESSION, args)
+    }.getOrNull()
 }

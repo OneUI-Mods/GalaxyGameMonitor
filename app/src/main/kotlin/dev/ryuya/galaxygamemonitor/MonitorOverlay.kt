@@ -12,6 +12,7 @@ import android.view.ViewGroup
 import android.view.inspector.WindowInspector
 import android.widget.LinearLayout
 import android.widget.TextView
+import java.lang.ref.WeakReference
 import java.text.NumberFormat
 import kotlin.math.ceil
 import kotlin.math.roundToInt
@@ -38,7 +39,21 @@ internal class MonitorOverlay(context: Context, private val capture: MonitorCapt
         groupIds.values.all { it != 0 }
 
     private val main = Handler(Looper.getMainLooper())
+    private val readingLock = Any()
     @Volatile private var closed = false
+    @Volatile private var window: WeakReference<View>? = null
+    private var pendingReading: Reading? = null
+    private val draw = Runnable {
+        val reading = synchronized(readingLock) {
+            pendingReading.also { pendingReading = null }
+        } ?: return@Runnable
+        if (!closed) {
+            runCatching { render(reading) }.onFailure {
+                Log.w(TAG, "System monitor items unavailable", it)
+                close()
+            }
+        }
+    }
     @Volatile var monitorVisible = false
         private set
     private var binding: Binding? = null
@@ -62,19 +77,23 @@ internal class MonitorOverlay(context: Context, private val capture: MonitorCapt
         }
     }
 
-    fun submit(reading: Reading) {
-        if (!supported || closed) return
-        main.post {
-            if (closed) return@post
-            runCatching { render(reading) }.onFailure {
-                Log.w(TAG, "System monitor items unavailable", it)
-                close()
-            }
-        }
+    fun onWindowAdded(view: View) {
+        if (!closed) window = WeakReference(view)
+    }
+
+    fun submit(reading: Reading) = synchronized(readingLock) {
+        if (!supported || closed) return@synchronized
+        val scheduled = pendingReading != null
+        pendingReading = reading
+        if (!scheduled && !main.post(draw)) pendingReading = null
     }
 
     fun close() {
-        closed = true
+        synchronized(readingLock) {
+            closed = true
+            pendingReading = null
+        }
+        window = null
         monitorVisible = false
         main.removeCallbacksAndMessages(null)
         if (Looper.myLooper() == Looper.getMainLooper()) restoreSafely()
@@ -130,7 +149,8 @@ internal class MonitorOverlay(context: Context, private val capture: MonitorCapt
     }
 
     private fun bind(): Binding? {
-        val root = WindowInspector.getGlobalWindowViews().firstNotNullOfOrNull { it.findViewById<View>(rootId) }
+        val root = window?.get()?.takeIf { it.isAttachedToWindow }?.findViewById<View>(rootId)
+            ?: WindowInspector.getGlobalWindowViews().firstNotNullOfOrNull { it.findViewById<View>(rootId) }
             ?: return null
         val container = root.findViewById<ViewGroup>(itemsId) ?: return null
         if (container.childCount != groupIds.size) return null
