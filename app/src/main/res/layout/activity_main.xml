@@ -24,6 +24,15 @@
             android:textAppearance="?attr/textAppearanceDisplaySmall"
             android:textColor="?attr/colorOnSurface" />
 
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/gpu_performance_button"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:minHeight="48dp"
+            android:text="@string/gpu_performance_heading" />
+
         <com.google.android.material.card.MaterialCardView
             style="@style/Widget.Material3.CardView.Filled"
             android:layout_width="match_parent"

@@ -17,6 +17,7 @@ import android.widget.Switch
 import android.widget.TextView
 import dev.ryuya.galaxygamemonitor.GpuPerformanceSettings.Mode
 import dev.ryuya.galaxygamemonitor.GpuPerformanceSettings.Status
+import dev.ryuya.galaxygamemonitor.SdhmsGpuOrphanCleanup.Status as CleanupStatus
 
 internal class GpuPerformanceControls(
     context: Context,
@@ -26,7 +27,11 @@ internal class GpuPerformanceControls(
 ) : LinearLayout(context) {
     private val bypass = Switch(context).apply { text = strings.getString(R.string.gos_gpu_max_bypass) }
     private val gosStatus = TextView(context)
+    private val sdhms = Switch(context).apply { text = strings.getString(R.string.sdhms_gpu_thermal) }
+    private val sdhmsStatus = TextView(context)
     private val gosCeiling = TextView(context)
+    private val sdhmsCeiling = TextView(context)
+    private val sdhmsCleanupStatus = TextView(context).apply { visibility = View.GONE }
     private val actualCeiling = TextView(context)
     private val gmuCurrent = TextView(context)
     private val modes = RadioGroup(context).apply { orientation = VERTICAL }
@@ -59,7 +64,11 @@ internal class GpuPerformanceControls(
         addView(bypass)
         addView(gosStatus)
         addView(gosCeiling)
+        addView(sdhmsCeiling)
         addView(actualCeiling)
+        addView(sdhms)
+        addView(sdhmsStatus)
+        addView(sdhmsCleanupStatus)
         addView(TextView(context).apply {
             setPaddingRelative(0, spacing, 0, 0)
             text = strings.getString(R.string.gmu_target)
@@ -69,6 +78,9 @@ internal class GpuPerformanceControls(
         addView(gmuStatus)
         bypass.setOnCheckedChangeListener { _, checked ->
             if (!rendering) update(Bundle().apply { putBoolean(GpuPerformanceSettings.KEY_BYPASS, checked) })
+        }
+        sdhms.setOnCheckedChangeListener { _, checked ->
+            if (!rendering) update(Bundle().apply { putBoolean(GpuPerformanceSettings.KEY_SDHMS, checked) })
         }
         modes.setOnCheckedChangeListener { _, id ->
             val mode = modeButtons.entries.singleOrNull { it.value.id == id }?.key
@@ -82,6 +94,11 @@ internal class GpuPerformanceControls(
             context.contentResolver.registerContentObserver(GpuPerformanceSettings.uri, true, observer)
         }.isSuccess
         refresh()
+        if (SdhmsGpuThermalHook.supportsDevice()) {
+            runCatching {
+                context.contentResolver.call(GpuPerformanceSettings.uri, GpuPerformanceSettings.SDHMS_REFRESH, null, null)
+            }
+        }
         startReadings()
     }
 
@@ -137,14 +154,35 @@ internal class GpuPerformanceControls(
     private fun render(state: Bundle?) {
         rendering = true
         bypass.isEnabled = state != null
+        val bypassEnabled = state?.getBoolean(GpuPerformanceSettings.KEY_BYPASS) == true
+        val sdhmsConnected = state?.getBoolean(GpuPerformanceSettings.KEY_SDHMS_CONNECTED) == true
+        sdhms.isEnabled = bypassEnabled && SdhmsGpuThermalHook.supportsDevice()
+        val sdhmsRequested = state?.getInt(GpuPerformanceSettings.KEY_SDHMS_MAX_MHZ, GpuPerformanceSettings.SDHMS_UNKNOWN)
+        sdhmsCeiling.text = when {
+            sdhmsConnected && sdhmsRequested != null && sdhmsRequested > 0 ->
+                strings.getString(R.string.sdhms_ceiling_requested, sdhmsRequested)
+            sdhmsConnected && sdhmsRequested == GpuPerformanceSettings.SDHMS_NO_REQUEST ->
+                strings.getString(R.string.sdhms_ceiling_no_request)
+            else -> strings.getString(R.string.sdhms_ceiling_unavailable)
+        }
+        val cleanup = state?.getInt(GpuPerformanceSettings.KEY_SDHMS_CLEANUP, -1)
+            ?.let(CleanupStatus.entries::getOrNull)
+        val cleanupLabel = when (cleanup) {
+            CleanupStatus.CLEARED -> R.string.sdhms_cleanup_cleared
+            CleanupStatus.ROOT_REQUIRED -> R.string.sdhms_cleanup_root_required
+            CleanupStatus.FAILED -> R.string.sdhms_cleanup_failed
+            else -> null
+        }
+        sdhmsCleanupStatus.text = cleanupLabel?.let(strings::getString).orEmpty()
+        sdhmsCleanupStatus.visibility = if (cleanupLabel == null) View.GONE else View.VISIBLE
         modeButtons.values.forEach { it.isEnabled = state != null }
         if (state == null) {
             gosStatus.text = strings.getString(R.string.monitor_settings_unavailable)
+            sdhmsStatus.text = ""
             gosCeiling.text = strings.getString(R.string.gos_ceiling_unavailable)
             gmuStatus.text = ""
             reportedGmuFps = null
         } else {
-            val enabled = state.getBoolean(GpuPerformanceSettings.KEY_BYPASS)
             val game = inGamePanel || state.getBoolean(GpuPerformanceSettings.KEY_GAME)
             val connected = state.getBoolean(GpuPerformanceSettings.KEY_GOS_CONNECTED)
             val requested = state.getInt(GpuPerformanceSettings.KEY_GOS_MAX_MHZ)
@@ -153,14 +191,23 @@ internal class GpuPerformanceControls(
                 connected -> strings.getString(R.string.gos_ceiling_no_request)
                 else -> strings.getString(R.string.gos_ceiling_unavailable)
             }
-            bypass.isChecked = enabled
-            gosStatus.text = strings.getString(when {
-                !enabled -> R.string.gos_gpu_max_system
+            bypass.isChecked = bypassEnabled
+            sdhms.isChecked = state.getBoolean(GpuPerformanceSettings.KEY_SDHMS)
+            sdhmsStatus.text = when {
+                !SdhmsGpuThermalHook.supportsDevice() -> strings.getString(R.string.sdhms_gpu_unsupported)
+                sdhms.isChecked && !sdhmsConnected ->
+                    strings.getString(R.string.sdhms_gpu_disconnected)
+                else -> ""
+            }
+            sdhmsStatus.visibility = if (sdhmsStatus.text.isEmpty()) View.GONE else View.VISIBLE
+            val gosStatusLabel = when {
+                !bypassEnabled -> null
                 !connected -> R.string.gos_gpu_max_disconnected
-                state.getBoolean(GpuPerformanceSettings.KEY_MATCHED) -> R.string.gos_gpu_max_active
+                state.getBoolean(GpuPerformanceSettings.KEY_MATCHED) -> null
                 game -> R.string.gos_gpu_max_waiting
                 else -> R.string.gpu_waiting_for_game
-            })
+            }
+            gosStatus.text = gosStatusLabel?.let(strings::getString).orEmpty()
             val mode = Mode.entries.getOrElse(state.getInt(GpuPerformanceSettings.KEY_MODE)) { Mode.SYSTEM }
             modes.check(modeButtons.getValue(mode).id)
             val status = Status.entries.getOrElse(state.getInt(GpuPerformanceSettings.KEY_STATUS)) { Status.IDLE }
@@ -179,6 +226,7 @@ internal class GpuPerformanceControls(
                 }
             }
         }
+        gosStatus.visibility = if (gosStatus.text.isEmpty()) View.GONE else View.VISIBLE
         renderGmuCurrent()
         rendering = false
     }

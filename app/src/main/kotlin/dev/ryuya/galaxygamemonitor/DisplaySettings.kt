@@ -8,6 +8,7 @@ import android.content.Context
 import android.database.ContentObserver
 import android.database.Cursor
 import android.net.Uri
+import android.os.Binder
 import android.os.Bundle
 import android.os.SystemClock
 import android.util.Log
@@ -162,15 +163,30 @@ class DisplaySettingsProvider : ContentProvider() {
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle {
         val caller = callingPackage
         val owner = requireNotNull(context)
+        val ownApp = Binder.getCallingUid() == owner.applicationInfo.uid
         when (method) {
             GpuPerformanceSettings.READ -> {
-                if (caller != DisplaySettings.GAME_BOOSTER && caller != GpuPerformanceSettings.GOS) throw SecurityException()
+                if (!ownApp && caller != DisplaySettings.GAME_BOOSTER && caller != GpuPerformanceSettings.GOS) throw SecurityException()
                 return GpuPerformanceSettings.snapshot(owner)
             }
             GpuPerformanceSettings.UPDATE -> {
-                if (caller != DisplaySettings.GAME_BOOSTER) throw SecurityException()
+                if (!ownApp && caller != DisplaySettings.GAME_BOOSTER) throw SecurityException()
                 GpuPerformanceSettings.update(owner, requireNotNull(extras))
                 return GpuPerformanceSettings.snapshot(owner)
+            }
+            GpuPerformanceSettings.SDHMS_CONFIG -> {
+                if (caller != GpuPerformanceSettings.SDHMS) throw SecurityException()
+                return GpuPerformanceSettings.sdhmsConfig(owner)
+            }
+            GpuPerformanceSettings.SDHMS_SESSION -> {
+                if (caller != GpuPerformanceSettings.SDHMS) throw SecurityException()
+                GpuPerformanceSettings.reportSdhms(owner, Binder.getCallingPid(), requireNotNull(extras))
+                return Bundle.EMPTY
+            }
+            GpuPerformanceSettings.SDHMS_REFRESH -> {
+                if (!ownApp && caller != DisplaySettings.GAME_BOOSTER) throw SecurityException()
+                GpuPerformanceSettings.refreshSdhms(owner)
+                return Bundle.EMPTY
             }
             GpuPerformanceSettings.GOS_SESSION -> {
                 if (caller != GpuPerformanceSettings.GOS) throw SecurityException()

@@ -5,12 +5,14 @@ import android.os.Bundle
 import android.os.UserManager
 import android.view.View
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.color.DynamicColors
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.slider.Slider
 import com.google.android.material.textview.MaterialTextView
@@ -39,6 +41,19 @@ class MainActivity : AppCompatActivity() {
             )
             view.setPadding(insets.left, insets.top, insets.right, insets.bottom)
             windowInsets
+        }
+
+        findViewById<MaterialButton>(R.id.gpu_performance_button).setOnClickListener {
+            val spacing = (resources.displayMetrics.density * 24).toInt()
+            val content = ScrollView(this).apply {
+                setPaddingRelative(spacing, 0, spacing, 0)
+                addView(GpuPerformanceControls(this@MainActivity, resources, showHeading = false))
+            }
+            MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.gpu_performance_heading)
+                .setView(content)
+                .setPositiveButton(android.R.string.ok, null)
+                .show()
         }
 
         val settings = DisplaySettings.read(this)

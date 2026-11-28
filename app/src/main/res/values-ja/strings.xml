@@ -38,9 +38,13 @@
     <string name="reload_unavailable">この端末ではゲームブースターを利用できません。</string>
     <string name="reload_failed">ゲームブースターを再読み込みできませんでした。</string>
     <string name="gpu_performance_heading">GPUパフォーマンス</string>
+    <string name="sdhms_gpu_thermal">ゲーム中もSDHMSのGPU温度制御を使う</string>
+    <string name="sdhms_gpu_disconnected">Samsung Device Health Managerとの接続を待っています。</string>
+    <string name="sdhms_cleanup_cleared">終了したSDHMSが残したGPU上限を解除しました。</string>
+    <string name="sdhms_cleanup_root_required">SDHMSが残したGPU上限の確認には、Galaxy Game Monitorのroot権限が必要です。</string>
+    <string name="sdhms_cleanup_failed">SDHMSが残したGPU上限を確認できませんでした。</string>
+    <string name="sdhms_gpu_unsupported">この端末のSDHMSには未対応です。</string>
     <string name="gos_gpu_max_bypass">GOSのGPUクロック上限を解除</string>
-    <string name="gos_gpu_max_system">SamsungのGPUクロック制御を使用中</string>
-    <string name="gos_gpu_max_active">GOSのGPUクロック上限を解除中</string>
     <string name="gos_gpu_max_waiting">対応するGOSのGPU上限要求を待機中</string>
     <string name="gpu_waiting_for_game">GOSが監視するゲームの起動を待機中</string>
     <string name="gmu_target">GMUの目標FPS</string>
@@ -57,6 +61,9 @@
     <string name="gos_ceiling_requested">GOSの要求上限 %1$d MHz</string>
     <string name="gos_ceiling_no_request">GOSの要求上限 未検出</string>
     <string name="gos_ceiling_unavailable">GOSの要求上限 取得不可</string>
+    <string name="sdhms_ceiling_requested">SDHMSの要求上限 %1$d MHz</string>
+    <string name="sdhms_ceiling_no_request">SDHMSの要求上限 なし</string>
+    <string name="sdhms_ceiling_unavailable">SDHMSの要求上限 取得不可</string>
     <string name="gpu_ceiling_actual">GPUの実効上限 %1$d MHz</string>
     <string name="gpu_ceiling_shared">GPUの共有上限 %1$d MHz</string>
     <string name="gpu_ceiling_unavailable">GPUの現在の上限 取得不可</string>

@@ -38,9 +38,13 @@
     <string name="reload_unavailable">Game Booster is unavailable on this device.</string>
     <string name="reload_failed">Could not reload Game Booster.</string>
     <string name="gpu_performance_heading">GPU performance</string>
+    <string name="sdhms_gpu_thermal">Keep SDHMS GPU temperature control in games</string>
+    <string name="sdhms_gpu_disconnected">Waiting for a connection to Samsung Device Health Manager.</string>
+    <string name="sdhms_cleanup_cleared">Cleared a GPU cap left by a previous SDHMS process.</string>
+    <string name="sdhms_cleanup_root_required">Grant Galaxy Game Monitor root access to check for GPU caps left by SDHMS.</string>
+    <string name="sdhms_cleanup_failed">Could not verify GPU caps left by SDHMS.</string>
+    <string name="sdhms_gpu_unsupported">This SDHMS build is unsupported.</string>
     <string name="gos_gpu_max_bypass">Bypass GOS GPU clock cap</string>
-    <string name="gos_gpu_max_system">Using Samsung’s GPU clock policy</string>
-    <string name="gos_gpu_max_active">GOS GPU clock cap bypassed</string>
     <string name="gos_gpu_max_waiting">Waiting for a compatible GOS GPU limit request</string>
     <string name="gpu_waiting_for_game">Waiting for a game monitored by GOS</string>
     <string name="gmu_target">GPU governor target</string>
@@ -57,6 +61,9 @@
     <string name="gos_ceiling_requested">GOS requested ceiling: %1$d MHz</string>
     <string name="gos_ceiling_no_request">GOS requested ceiling: no request recorded</string>
     <string name="gos_ceiling_unavailable">GOS requested ceiling: unavailable</string>
+    <string name="sdhms_ceiling_requested">SDHMS requested ceiling: %1$d MHz</string>
+    <string name="sdhms_ceiling_no_request">SDHMS requested ceiling: no active request</string>
+    <string name="sdhms_ceiling_unavailable">SDHMS requested ceiling: unavailable</string>
     <string name="gpu_ceiling_actual">Effective GPU ceiling: %1$d MHz</string>
     <string name="gpu_ceiling_shared">Shared GPU ceiling: %1$d MHz</string>
     <string name="gpu_ceiling_unavailable">Current GPU ceiling: unavailable</string>

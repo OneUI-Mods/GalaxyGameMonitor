@@ -28,6 +28,8 @@ Each metric keeps Game Booster’s standard value when the device cannot supply 
 
 ### GPU performance
 
-During a game, open **Game Booster settings → GPU performance**. On the full Game Booster settings screen, open **Monitor**. Enable **Bypass GOS GPU clock cap** to filter Samsung Game Optimizing Service’s GPU ceiling requests during a game. On compatible Adreno devices, choose **System default**, **60 FPS**, or **120 FPS** for the GMU target. The GMU reads the target as an input to GPU clock selection, and the panel shows the effective value.
+Open **GPU performance** in Galaxy Game Monitor or in **Game Booster settings** during a game. On the full Game Booster settings screen, open **Monitor**. Enable **Bypass GOS GPU clock cap** to filter Samsung Game Optimizing Service’s GPU ceiling requests during a game. On compatible Adreno devices, choose **System default**, **60 FPS**, or **120 FPS** for the GMU target. The GMU reads the target as an input to GPU clock selection, and the panel shows the effective value.
 
 Enable **Game Optimizing Service** in the module’s Vector scope. On first use after adding this scope, GOS must start a new process so Vector can load the module into it. Grant Galaxy Game Monitor root access for the GMU target control.
+
+**Keep SDHMS GPU temperature control in games** keeps Samsung’s GPU temperature policy available during games on BZI9 Galaxy S26 Ultra. Turning on the GOS cap bypass also enables this option, which you can then turn off independently. Restoring the GOS cap turns off this option. The settings show the GPU ceiling currently requested by SDHMS. Its GPU request expires after 30 seconds and renews while SDHMS holds the ceiling. With root access, Galaxy Game Monitor checks for orphaned GPU requests when SDHMS connects and clears any matching requests. Add **Samsung Device Health Manager** to the Vector scope. The first scope change takes effect the next time SDHMS starts.

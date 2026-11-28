@@ -28,6 +28,8 @@ CPUの標準表示は、測定区間でCPUが稼働していた時間の割合�
 
 ### GPUパフォーマンス
 
-ゲーム中は **Game Booster設定 → GPUパフォーマンス** を開きます。全画面のGame Booster設定では **表示項目** から変更できます。**GOSのGPUクロック上限を解除** を有効にすると、ゲーム中のGOSによるGPU上限要求を除外します。対応するAdreno端末ではGMUの目標を **システム既定**、**60 FPS**、**120 FPS** から選べます。GMUはGPUクロックを選ぶときにこの値を使い、設定画面には実効値が表示されます。
+Galaxy Game Monitorアプリ、またはゲーム中の **Game Booster設定 → GPUパフォーマンス** から開けます。全画面のGame Booster設定では **表示項目** から変更できます。**GOSのGPUクロック上限を解除** を有効にすると、ゲーム中のGOSによるGPU上限要求を除外します。対応するAdreno端末ではGMUの目標を **システム既定**、**60 FPS**、**120 FPS** から選べます。GMUはGPUクロックを選ぶときにこの値を使い、設定画面には実効値が表示されます。
 
 Vectorでこのモジュールの適用範囲に **Game Optimizing Service** を追加してください。適用範囲の追加直後は、GOSのプロセスが次に起動したときにモジュールが読み込まれます。GMUの変更にはGalaxy Game Monitorのroot権限が必要です。
+
+**ゲーム中もSDHMSのGPU温度制御を使う** は、BZI9のGalaxy S26 Ultraで純正のSDHMSによるGPU温度制御をゲーム中も使用します。GOSの上限解除をオンにすると同時にオンになり、その後は個別にオフにできます。GOSの上限制御に戻すとこの設定はオフになります。SDHMSが要求中のGPU上限は設定画面に表示されます。GPU上限には30秒の有効期限があり、SDHMSが上限を保持している間は更新されます。Galaxy Game Monitorにroot権限がある場合は、SDHMSの接続時に終了済みプロセスが残したGPU上限を確認し、該当する要求を解除します。Vectorの適用範囲に **Samsung Device Health Manager** を追加してください。初回はSDHMSの次回起動時に読み込まれます。

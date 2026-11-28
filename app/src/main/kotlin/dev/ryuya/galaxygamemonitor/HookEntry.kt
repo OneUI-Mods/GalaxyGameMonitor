@@ -35,6 +35,7 @@ class HookEntry : XposedModule() {
     private val inGameSettings = InGameMonitorSettings()
     private val boosterGameSession = BoosterGameSession()
     private var gosPerformance: GosPerformanceHook? = null
+    private var sdhmsGpuThermal: SdhmsGpuThermalHook? = null
     @Volatile private var retired = false
     private val loggedCpu = AtomicBoolean()
     private val loggedGpuMode = AtomicReference<Boolean?>()
@@ -47,6 +48,10 @@ class HookEntry : XposedModule() {
         if (!param.isFirstPackage || param.packageName != processName) return
         if (param.packageName == GpuPerformanceSettings.GOS) {
             installGosHook(param.classLoader)
+            return
+        }
+        if (param.packageName == GpuPerformanceSettings.SDHMS) {
+            installSdhmsHook(param.classLoader)
             return
         }
         if (param.packageName != DisplaySettings.GAME_BOOSTER) return
@@ -62,6 +67,11 @@ class HookEntry : XposedModule() {
         if (processName == GpuPerformanceSettings.GOS) {
             val performance = gosPerformance ?: return false
             param.setSavedInstanceState(arrayOf(loader, performance.retire()))
+            return true
+        }
+        if (processName == GpuPerformanceSettings.SDHMS) {
+            val thermal = sdhmsGpuThermal ?: return false
+            param.setSavedInstanceState(arrayOf(loader, thermal.retire()))
             return true
         }
         param.setSavedInstanceState(arrayOf(loader, hostContext, connectedProxy, monitorSettingsEntry?.activity))
@@ -85,6 +95,15 @@ class HookEntry : XposedModule() {
             val performance = installGosHook(loader) ?: return
             val context = previous?.getOrNull(0) as? Context
             if (context != null) performance.attach(context, previous.getOrNull(1) as? Bundle)
+            param.oldHookHandles.forEach { it.unhook() }
+            logHotReload()
+            return
+        }
+        if (param.processName == GpuPerformanceSettings.SDHMS) {
+            val previous = state.getOrNull(1) as? Array<*>
+            val thermal = installSdhmsHook(loader) ?: return
+            val context = previous?.getOrNull(0) as? Context
+            thermal.reconnect(context, previous?.getOrNull(1) as? Array<*> ?: emptyArray<Any?>())
             param.oldHookHandles.forEach { it.unhook() }
             logHotReload()
             return
@@ -116,6 +135,17 @@ class HookEntry : XposedModule() {
             gosPerformance = it
         }
     }.onFailure { Log.w(TAG, "GOS GPU performance hooks unavailable", it) }.getOrNull()
+
+    private fun installSdhmsHook(loader: ClassLoader): SdhmsGpuThermalHook? {
+        if (!SdhmsGpuThermalHook.supportsDevice()) return null
+        return runCatching {
+            SdhmsGpuThermalHook(this, loader).also {
+                it.install()
+                hostLoader = loader
+                sdhmsGpuThermal = it
+            }
+        }.onFailure { Log.w(TAG, "SDHMS GPU thermal hooks unavailable", it) }.getOrNull()
+    }
 
     private fun logHotReload() {
         Log.i(TAG, "ONEUI_MODS_HOT_RELOAD package=${BuildConfig.APPLICATION_ID} version=${BuildConfig.VERSION_CODE} pid=${android.os.Process.myPid()}")
