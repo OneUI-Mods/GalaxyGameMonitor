@@ -18,6 +18,7 @@
     <string name="monitor_game_ram_root">Detailed game memory requires root permission for Galaxy Game Monitor.</string>
     <string name="monitor_battery_level">Battery level</string>
     <string name="monitor_battery_temperature">Battery temperature</string>
+    <string name="monitor_battery_power">Battery power (W)</string>
     <string name="monitor_order">Reorder items</string>
     <string name="monitor_show_in_capture">Show in screenshots and screen recordings</string>
     <string name="monitor_move_up">Move %1$s up</string>

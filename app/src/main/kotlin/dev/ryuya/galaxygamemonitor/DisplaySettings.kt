@@ -23,6 +23,7 @@ internal enum class MonitorItem(val bit: Int, val label: Int) {
     GAME_RAM(1 shl 7, R.string.monitor_game_ram),
     BATTERY_LEVEL(1 shl 6, R.string.monitor_battery_level),
     BATTERY_TEMPERATURE(1 shl 5, R.string.monitor_battery_temperature),
+    BATTERY_POWER(1 shl 8, R.string.monitor_battery_power),
 }
 
 internal data class MonitorSettings(

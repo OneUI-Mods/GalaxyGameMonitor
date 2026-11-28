@@ -31,8 +31,9 @@ Show measured CPU and GPU usage and per-game memory in Samsung Game Booster, and
 
 ## System monitor
 
-- Choose which metrics to show. Available metrics include FPS, CPU and GPU usage, GPU clock, system and game memory, and battery level and temperature. GPU support includes Adreno, Xclipse, and Mali. Available readings vary by device.
-- Reorder items and choose 1–8 items per row (four by default). CPU and GPU usage can also be shown relative to peak clock speed.
+- Choose which metrics to show. Available metrics include FPS, CPU and GPU usage, GPU clock, system and game memory, and battery level, temperature, and power. GPU support includes Adreno, Xclipse, and Mali. Available readings vary by device.
+- **BAT W** shows power computed from battery voltage and current. Positive values indicate discharge and negative values indicate charging. While plugged in, this reading covers power flowing into or out of the battery.
+- Reorder items and choose 1–9 items per row (four by default). CPU and GPU usage can also be shown relative to peak clock speed.
 - Turn off **Show in screenshots and screen recordings** to keep the monitor visible on the device and hide it from captures.
 - Game memory (PSS, in GiB) requires root access for Galaxy Game Monitor.
 

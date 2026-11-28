@@ -10,10 +10,15 @@ import android.os.SystemClock
 import java.io.File
 import java.io.IOException
 import java.util.StringTokenizer
+import kotlin.math.roundToInt
 
 internal class DeviceCapacity(private val context: Context) {
     data class CpuSample(val percentage: Double, val source: String, val peakRelative: Boolean)
-    data class BatterySample(val temperatureTenthsC: Int?, val percent: Int?)
+    data class BatterySample(
+        val temperatureTenthsC: Int?,
+        val percent: Int?,
+        val dischargeTenthsW: Int?,
+    )
 
     private data class Counters(
         val timeMs: Long,
@@ -30,13 +35,15 @@ internal class DeviceCapacity(private val context: Context) {
     private val canReadBatteryTemp by lazy(batteryTempFile::canRead)
     private val batteryCapacityFile = File("/sys/class/power_supply/battery/capacity")
     private val canReadBatteryCapacity by lazy(batteryCapacityFile::canRead)
+    private val batteryManager by lazy { context.getSystemService(BatteryManager::class.java) }
     private val procStat = File("/proc/stat")
     private val canReadProcStat by lazy(procStat::canRead)
     private val hardwareManager by lazy { context.getSystemService(HardwarePropertiesManager::class.java) }
     private var previous: Counters? = null
     private var retryHardwareManagerAfterMs = 0L
     private var nextBatteryReadingMs = 0L
-    private var lastBattery = BatterySample(null, null)
+    private var sampledBatteryPower = false
+    private var lastBattery = BatterySample(null, null, null)
 
     @Synchronized
     fun resetCpuSample() {
@@ -106,15 +113,16 @@ internal class DeviceCapacity(private val context: Context) {
         gpu.sample(includeUsage, peakRelative, includeClock)
 
     @Synchronized
-    fun battery(): BatterySample {
+    fun battery(includePower: Boolean): BatterySample {
         val now = SystemClock.elapsedRealtime()
-        if (now < nextBatteryReadingMs) return lastBattery
+        if (now < nextBatteryReadingMs && sampledBatteryPower == includePower) return lastBattery
         nextBatteryReadingMs = now + BATTERY_SAMPLE_MS
+        sampledBatteryPower = includePower
         val temperature = if (canReadBatteryTemp) number(batteryTempFile)
             ?.takeIf { it in -400..1000 }?.toInt() else null
         val percent = if (canReadBatteryCapacity) number(batteryCapacityFile)
             ?.takeIf { it in 0..100 }?.toInt() else null
-        val broadcast = if (temperature == null || percent == null) batteryBroadcast() else null
+        val broadcast = if (temperature == null || percent == null || includePower) batteryBroadcast() else null
         val reportedTemperature = broadcast
             ?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, Int.MIN_VALUE)
             ?.takeIf { it in -400..1000 }
@@ -123,7 +131,14 @@ internal class DeviceCapacity(private val context: Context) {
             val scale = it.getIntExtra(BatteryManager.EXTRA_SCALE, 0)
             if (scale > 0 && level in 0..scale) ((100L * level + scale / 2) / scale).toInt() else null
         }
-        lastBattery = BatterySample(temperature ?: reportedTemperature, percent ?: reportedPercent)
+        val voltageMv = if (includePower) broadcast?.getIntExtra(BatteryManager.EXTRA_VOLTAGE, 0) else null
+        val discharge = voltageMv?.takeIf { it > 0 }?.let { voltage ->
+            val currentUa = runCatching {
+                batteryManager?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW)
+            }.getOrNull()
+            currentUa?.let { batteryDischargeTenthsW(voltage, it) }
+        }
+        lastBattery = BatterySample(temperature ?: reportedTemperature, percent ?: reportedPercent, discharge)
         return lastBattery
     }
 
@@ -210,4 +225,10 @@ internal class DeviceCapacity(private val context: Context) {
         private val WHITESPACE = Regex("\\s+")
         private val POLICY_NAME = Regex("policy[0-9]+")
     }
+}
+
+internal fun batteryDischargeTenthsW(voltageMv: Int, currentUa: Int): Int? {
+    if (voltageMv <= 0 || currentUa == Int.MIN_VALUE) return null
+    // Android reports current entering the battery as positive. Display discharge as positive.
+    return (-currentUa.toDouble() * voltageMv / 100_000_000.0).roundToInt()
 }

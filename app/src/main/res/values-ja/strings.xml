@@ -18,6 +18,7 @@
     <string name="monitor_game_ram_root">ゲームのメモリ使用量を詳しく計測するには、Galaxy Game MonitorにRoot権限を許可してください。</string>
     <string name="monitor_battery_level">バッテリー残量</string>
     <string name="monitor_battery_temperature">バッテリー温度</string>
+    <string name="monitor_battery_power">バッテリー電力（W）</string>
     <string name="monitor_order">表示項目の並び替え</string>
     <string name="monitor_show_in_capture">スクリーンショット・画面録画に表示</string>
     <string name="monitor_move_up">%1$sを上へ</string>

@@ -58,7 +58,7 @@ internal class MonitorOverlay(context: Context, private val capture: MonitorCapt
         private set
     private var binding: Binding? = null
     private var lastReading: Reading? = null
-    private val temperatures = NumberFormat.getNumberInstance(context.resources.configuration.locales[0]).apply {
+    private val oneDecimal = NumberFormat.getNumberInstance(context.resources.configuration.locales[0]).apply {
         minimumFractionDigits = 1
         maximumFractionDigits = 1
         isGroupingUsed = false
@@ -123,8 +123,12 @@ internal class MonitorOverlay(context: Context, private val capture: MonitorCapt
             setReading(active.extra.getValue(MonitorItem.BATTERY_LEVEL), battery?.percent?.toString())
         }
         if (previous == null || previous.battery?.temperatureTenthsC != battery?.temperatureTenthsC) {
-            val temperature = battery?.temperatureTenthsC?.let { temperatures.format(it / 10.0) }
+            val temperature = battery?.temperatureTenthsC?.let { oneDecimal.format(it / 10.0) }
             setReading(active.extra.getValue(MonitorItem.BATTERY_TEMPERATURE), temperature)
+        }
+        if (previous == null || previous.battery?.dischargeTenthsW != battery?.dischargeTenthsW) {
+            val watts = battery?.dischargeTenthsW?.let { oneDecimal.format(it / 10.0) }
+            setReading(active.extra.getValue(MonitorItem.BATTERY_POWER), watts)
         }
         lastReading = reading
     }
@@ -166,6 +170,7 @@ internal class MonitorOverlay(context: Context, private val capture: MonitorCapt
             MonitorItem.GAME_RAM to "GAME GiB",
             MonitorItem.BATTERY_LEVEL to "BAT %",
             MonitorItem.BATTERY_TEMPERATURE to "BAT °C",
+            MonitorItem.BATTERY_POWER to "BAT W",
         ).mapValues { (_, label) -> extraColumn(template, label) ?: return null }
         val columns = stockColumns.associate { it.item to it.view }.toMutableMap().apply {
             for ((item, column) in extraColumns) put(item, column.view)

@@ -256,9 +256,10 @@ class HookEntry : XposedModule() {
                 val showClock = overlay.supported && settings.shows(MonitorItem.GPU_CLOCK)
                 val transformed = MonitorTelemetry.update(raw, capacity, settings, showClock)
                 if (overlay.supported) {
-                    val battery = if (settings.shows(MonitorItem.BATTERY_TEMPERATURE) ||
+                    val showPower = settings.shows(MonitorItem.BATTERY_POWER) && overlay.monitorVisible
+                    val battery = if (showPower || settings.shows(MonitorItem.BATTERY_TEMPERATURE) ||
                         settings.shows(MonitorItem.BATTERY_LEVEL)
-                    ) capacity.battery() else null
+                    ) capacity.battery(includePower = showPower) else null
                     val gameRamKiB = if (settings.shows(MonitorItem.GAME_RAM) && overlay.monitorVisible) {
                         gameRam.readKiB()
                     } else null
